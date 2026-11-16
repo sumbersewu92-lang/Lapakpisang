@@ -158,7 +158,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Profile Dropdown Menu */}
               {isDropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 min-w-[230px] w-max max-w-[280px] bg-white rounded-2xl shadow-xl border border-stone-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute left-0 right-0 top-full mt-2 w-full bg-white rounded-2xl shadow-xl border border-stone-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
                   {/* Header Info User */}
                   <div className="p-3 bg-gradient-to-br from-emerald-50/80 via-white to-stone-50 border-b border-stone-100">
                     <div className="flex items-center gap-2.5">
@@ -175,7 +175,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <div className="mt-2.5 pt-2 border-t border-emerald-100/60 text-[11px] text-stone-600">
                       <div className="flex items-center gap-1.5 text-stone-600 min-w-0">
                         <Store className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                        <span className="font-medium leading-snug" title={user.roleLabel}>
+                        <span className="font-medium leading-snug truncate" title={user.roleLabel}>
                           {user.roleLabel}
                         </span>
                       </div>
