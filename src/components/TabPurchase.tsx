@@ -21,6 +21,11 @@ import {
   isSameVariety
 } from '../data/initialData';
 import { captureScrollState, blurActiveTrigger } from '../utils/scrollPreservation';
+import {
+  capitalizeEachWord,
+  capitalizeFirstLetter,
+  handleCapitalizedInputChange
+} from '../utils/textFormat';
 
 interface TabPurchaseProps {
   purchases: FarmerPurchase[];
@@ -281,8 +286,9 @@ export const TabPurchase: React.FC<TabPurchaseProps> = ({
                   <input
                     type="text"
                     required
+                    autoCapitalize="words"
                     value={farmerName}
-                    onChange={(e) => setFarmerName(e.target.value)}
+                    onChange={(e) => handleCapitalizedInputChange(e, capitalizeEachWord, setFarmerName)}
                     placeholder="Nama Petani"
                     className="w-full h-[32px] pl-9 pr-3 text-sm bg-stone-50 border border-stone-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
                   />
@@ -354,6 +360,7 @@ export const TabPurchase: React.FC<TabPurchaseProps> = ({
                             <div className="flex items-center gap-2 animate-in fade-in duration-150">
                               <input
                                 type="text"
+                                autoCapitalize="words"
                                 ref={(el) => {
                                   if (el && pendingFocusRowIdRef.current === row.id) {
                                     pendingFocusRowIdRef.current = null;
@@ -362,7 +369,11 @@ export const TabPurchase: React.FC<TabPurchaseProps> = ({
                                 }}
                                 required
                                 value={row.customBananaType}
-                                onChange={(e) => handleUpdateRow(row.id, { customBananaType: e.target.value })}
+                                onChange={(e) =>
+                                  handleCapitalizedInputChange(e, capitalizeEachWord, (val) =>
+                                    handleUpdateRow(row.id, { customBananaType: val })
+                                  )
+                                }
                                 placeholder="Ketik jenis pisang manual..."
                                 className="flex-1 h-[32px] px-3 text-sm bg-white border border-emerald-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-700"
                               />
@@ -456,8 +467,9 @@ export const TabPurchase: React.FC<TabPurchaseProps> = ({
                 </label>
                 <input
                   type="text"
+                  autoCapitalize="sentences"
                   value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  onChange={(e) => handleCapitalizedInputChange(e, capitalizeFirstLetter, setNotes)}
                   placeholder="Contoh: Buah tua padat, grade A, bebas cacat getah"
                   className="w-full h-[32px] px-3 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
                 />
@@ -517,8 +529,9 @@ export const TabPurchase: React.FC<TabPurchaseProps> = ({
                   </div>
                   <input
                     type="text"
+                    autoCapitalize="sentences"
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => handleCapitalizedInputChange(e, capitalizeFirstLetter, setSearchQuery)}
                     placeholder="Cari nota, petani, varietas..."
                     className="w-full h-[34px] pl-8 pr-8 text-xs bg-stone-50 border border-stone-200 rounded-lg focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-700"
                   />

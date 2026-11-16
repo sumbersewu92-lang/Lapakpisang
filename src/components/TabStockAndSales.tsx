@@ -39,6 +39,11 @@ import {
   isSameVariety 
 } from '../data/initialData';
 import { captureScrollState, blurActiveTrigger } from '../utils/scrollPreservation';
+import {
+  capitalizeEachWord,
+  capitalizeFirstLetter,
+  handleCapitalizedInputChange
+} from '../utils/textFormat';
 
 interface TabStockAndSalesProps {
   stockList: BananaStockSummary[];
@@ -1059,8 +1064,9 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                     </div>
                     <input
                       type="text"
+                      autoCapitalize="words"
                       value={buyerWarehouseName}
-                      onChange={(e) => setBuyerWarehouseName(e.target.value)}
+                      onChange={(e) => handleCapitalizedInputChange(e, capitalizeEachWord, setBuyerWarehouseName)}
                       placeholder="Nama Pembeli"
                       className="w-full pl-9 pr-3 py-1.5 sm:py-2 text-xs sm:text-sm bg-stone-50 border border-stone-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
                     />
@@ -2289,8 +2295,9 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                   </label>
                   <input
                     type="text"
+                    autoCapitalize="sentences"
                     value={shrinkageNotes}
-                    onChange={(e) => setShrinkageNotes(e.target.value)}
+                    onChange={(e) => handleCapitalizedInputChange(e, capitalizeFirstLetter, setShrinkageNotes)}
                     placeholder="Contoh: Selisih timbang ulang saat muat truk ke gudang pusat"
                     className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
@@ -2500,8 +2507,9 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                   </label>
                   <input
                     type="text"
+                    autoCapitalize="sentences"
                     value={rejectNotes}
-                    onChange={(e) => setRejectNotes(e.target.value)}
+                    onChange={(e) => handleCapitalizedInputChange(e, capitalizeFirstLetter, setRejectNotes)}
                     placeholder="Contoh: Sortiran gudang pagi, kena panas/memar"
                     className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
                   />

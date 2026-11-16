@@ -18,6 +18,11 @@ import {
 } from 'lucide-react';
 import { AppUserRecord, UserRole } from '../types/banana';
 import { captureScrollState, blurActiveTrigger } from '../utils/scrollPreservation';
+import {
+  capitalizeEachWord,
+  capitalizeFirstLetter,
+  handleCapitalizedInputChange
+} from '../utils/textFormat';
 
 interface TabUsersProps {
   users: AppUserRecord[];
@@ -352,8 +357,9 @@ export const TabUsers: React.FC<TabUsersProps> = ({
               <input
                 id="new-user-name"
                 type="text"
+                autoCapitalize="words"
                 value={newFullName}
-                onChange={(e) => setNewFullName(e.target.value)}
+                onChange={(e) => handleCapitalizedInputChange(e, capitalizeEachWord, setNewFullName)}
                 placeholder="Contoh: Pak Budi / Kasir Pagi"
                 maxLength={120}
                 className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 placeholder-stone-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
@@ -474,8 +480,9 @@ export const TabUsers: React.FC<TabUsersProps> = ({
                 <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
+                  autoCapitalize="sentences"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => handleCapitalizedInputChange(e, capitalizeFirstLetter, setSearchQuery)}
                   placeholder="Cari ID atau nama..."
                   className="w-full sm:w-44 pl-8 pr-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 placeholder-stone-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
                 />
@@ -685,8 +692,9 @@ export const TabUsers: React.FC<TabUsersProps> = ({
                 <input
                   id="edit-full-name"
                   type="text"
+                  autoCapitalize="words"
                   value={editFullName}
-                  onChange={(e) => setEditFullName(e.target.value)}
+                  onChange={(e) => handleCapitalizedInputChange(e, capitalizeEachWord, setEditFullName)}
                   maxLength={120}
                   className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
                 />
