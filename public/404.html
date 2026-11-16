@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lapak Pisang Sumber Sewu</title>
+    <script>
+      (function () {
+        var path = window.location.pathname || '/';
+        var target = '/';
+        if (window.location.hostname.endsWith('.github.io')) {
+          var parts = path.split('/').filter(Boolean);
+          target = parts.length > 0 ? '/' + parts[0] + '/' : '/';
+        }
+        window.location.replace(target + window.location.search + window.location.hash);
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
