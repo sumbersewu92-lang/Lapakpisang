@@ -1,0 +1,596 @@
+{
+  "entities": {
+    "AppUser": {
+      "title": "AppUser",
+      "description": "Akun pengguna aplikasi Lapak Pisangku dengan kredensial tersimpan aman dan peran (owner/kasir).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID unik pengguna sekaligus username login (contoh: 252500).",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "username": {
+          "type": "string",
+          "description": "Username / ID pengguna untuk login.",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Nama lengkap pengguna.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["owner", "kasir"],
+          "description": "Peran akses pengguna: owner (superadmin) atau kasir."
+        },
+        "passwordHash": {
+          "type": "string",
+          "description": "Hash SHA-256 ter-salt dari kata sandi pengguna.",
+          "minLength": 64,
+          "maxLength": 128
+        },
+        "salt": {
+          "type": "string",
+          "description": "Salt acak per pengguna untuk hashing kata sandi.",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Status aktif akun pengguna."
+        },
+        "createdById": {
+          "type": "string",
+          "description": "ID pengguna owner yang membuat akun ini.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAtDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Tanggal pembuatan akun (ISO string).",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembuatan dokumen."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembaruan dokumen."
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "fullName",
+        "role",
+        "passwordHash",
+        "salt",
+        "isActive",
+        "createdAtDate",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LapakWorkspace": {
+      "title": "LapakWorkspace",
+      "description": "Dokumen induk gudang Lapak Pisangku untuk menyatukan seluruh transaksi operasional.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID ruang kerja lapak.",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Nama lapak / gudang.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembuatan dokumen."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembaruan dokumen."
+        }
+      },
+      "required": ["id", "name", "createdAt", "updatedAt"]
+    },
+    "FarmerPurchase": {
+      "title": "FarmerPurchase",
+      "description": "Nota pembelian pisang dari petani kebun beserta rincian varietas dan berat.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID dokumen pembelian.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "lapakId": {
+          "type": "string",
+          "description": "ID ruang kerja lapak induk.",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdById": {
+          "type": "string",
+          "description": "ID pengguna yang mencatat transaksi.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdByName": {
+          "type": "string",
+          "description": "Nama lengkap petugas/pengguna yang mencatat timbangan masuk.",
+          "maxLength": 120
+        },
+        "receiptNumber": {
+          "type": "string",
+          "description": "Nomor nota timbangan masuk.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "farmerName": {
+          "type": "string",
+          "description": "Nama petani penjual pisang.",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "bananaType": {
+          "type": "string",
+          "description": "Ringkasan varietas pisang pada nota.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "items": {
+          "type": "array",
+          "description": "Daftar rincian varietas pisang dalam nota pembelian (maksimal 20 item)."
+        },
+        "bunches": {
+          "type": "number",
+          "description": "Total jumlah tandan."
+        },
+        "weightKg": {
+          "type": "number",
+          "description": "Total berat bersih (kg)."
+        },
+        "buyPricePerKg": {
+          "type": "number",
+          "description": "Harga beli rata-rata per kg."
+        },
+        "totalPayment": {
+          "type": "number",
+          "description": "Total pembayaran ke petani."
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Tanggal transaksi pembelian (ISO string).",
+          "maxLength": 64
+        },
+        "notes": {
+          "type": "string",
+          "description": "Catatan tambahan transaksi.",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembuatan dokumen."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembaruan dokumen."
+        }
+      },
+      "required": [
+        "id",
+        "lapakId",
+        "createdById",
+        "receiptNumber",
+        "farmerName",
+        "bananaType",
+        "bunches",
+        "weightKg",
+        "buyPricePerKg",
+        "totalPayment",
+        "date",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CentralWarehouseSale": {
+      "title": "CentralWarehouseSale",
+      "description": "Nota pengiriman dan penjualan pisang ke gudang pusat atau pembeli.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID dokumen penjualan.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "lapakId": {
+          "type": "string",
+          "description": "ID ruang kerja lapak induk.",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdById": {
+          "type": "string",
+          "description": "ID pengguna yang mencatat penjualan.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdByName": {
+          "type": "string",
+          "description": "Nama lengkap petugas/pengguna yang mencatat penjualan.",
+          "maxLength": 120
+        },
+        "invoiceNumber": {
+          "type": "string",
+          "description": "Nomor surat jalan gudang pusat.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "buyerWarehouseName": {
+          "type": "string",
+          "description": "Nama pembeli atau gudang tujuan.",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "buyerWhatsApp": {
+          "type": "string",
+          "description": "Nomor WhatsApp pembeli opsional.",
+          "maxLength": 40
+        },
+        "buyerPhone": {
+          "type": "string",
+          "description": "Nomor telepon pembeli opsional.",
+          "maxLength": 40
+        },
+        "bananaType": {
+          "type": "string",
+          "description": "Ringkasan varietas pisang yang dikirim.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "items": {
+          "type": "array",
+          "description": "Rincian varietas item penjualan (maksimal 20 item)."
+        },
+        "weightKg": {
+          "type": "number",
+          "description": "Total berat pengiriman (kg)."
+        },
+        "bunches": {
+          "type": "number",
+          "description": "Total jumlah tandan pengiriman."
+        },
+        "sellPricePerKg": {
+          "type": "number",
+          "description": "Harga jual rata-rata per kg."
+        },
+        "totalRevenue": {
+          "type": "number",
+          "description": "Total omset penjualan."
+        },
+        "estimatedCost": {
+          "type": "number",
+          "description": "Total estimasi modal pokok."
+        },
+        "netProfit": {
+          "type": "number",
+          "description": "Laba kotor penjualan."
+        },
+        "profitMarginPercent": {
+          "type": "number",
+          "description": "Persentase margin keuntungan."
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Tanggal pengiriman (ISO string).",
+          "maxLength": 64
+        },
+        "notes": {
+          "type": "string",
+          "description": "Catatan pengiriman opsional.",
+          "maxLength": 500
+        },
+        "paymentStatus": {
+          "type": "string",
+          "enum": ["LUNAS", "BELUM_LUNAS"],
+          "description": "Status pembayaran nota pengiriman."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["Transfer Bank", "Tunai Langsung", "Transfer Susulan (Piutang)"],
+          "description": "Metode pembayaran yang dipilih."
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Tanggal jatuh tempo piutang opsional.",
+          "maxLength": 32
+        },
+        "paidAt": {
+          "type": "string",
+          "description": "Waktu pelunasan pembayaran opsional.",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembuatan dokumen."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembaruan dokumen."
+        }
+      },
+      "required": [
+        "id",
+        "lapakId",
+        "createdById",
+        "invoiceNumber",
+        "buyerWarehouseName",
+        "bananaType",
+        "weightKg",
+        "sellPricePerKg",
+        "totalRevenue",
+        "estimatedCost",
+        "netProfit",
+        "profitMarginPercent",
+        "date",
+        "paymentStatus",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BananaRejectRecord": {
+      "title": "BananaRejectRecord",
+      "description": "Catatan stok pisang reject atau tidak layak kirim beserta beban kerugiannya.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID dokumen reject.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "lapakId": {
+          "type": "string",
+          "description": "ID ruang kerja lapak induk.",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdById": {
+          "type": "string",
+          "description": "ID pengguna yang mencatat reject.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "referenceNumber": {
+          "type": "string",
+          "description": "Nomor referensi pencatatan reject.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "bananaType": {
+          "type": "string",
+          "description": "Varietas pisang yang direject.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "weightKg": {
+          "type": "number",
+          "description": "Berat pisang reject (kg)."
+        },
+        "bunches": {
+          "type": "number",
+          "description": "Jumlah tandan reject."
+        },
+        "costPricePerKg": {
+          "type": "number",
+          "description": "Modal pokok rata-rata per kg saat pencatatan."
+        },
+        "totalLossAmount": {
+          "type": "number",
+          "description": "Total nilai beban kerugian reject."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Alasan atau penyebab buah reject.",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "notes": {
+          "type": "string",
+          "description": "Catatan tambahan opsional.",
+          "maxLength": 500
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Tanggal pencatatan reject (ISO string).",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembuatan dokumen."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembaruan dokumen."
+        }
+      },
+      "required": [
+        "id",
+        "lapakId",
+        "createdById",
+        "referenceNumber",
+        "bananaType",
+        "weightKg",
+        "bunches",
+        "costPricePerKg",
+        "totalLossAmount",
+        "reason",
+        "date",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BananaShrinkageRecord": {
+      "title": "BananaShrinkageRecord",
+      "description": "Catatan penyesuaian susut berat atau selisih timbangan stok pisang.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID dokumen susut timbang.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "lapakId": {
+          "type": "string",
+          "description": "ID ruang kerja lapak induk.",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdById": {
+          "type": "string",
+          "description": "ID pengguna yang mencatat susut.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "referenceNumber": {
+          "type": "string",
+          "description": "Nomor referensi pencatatan susut.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "bananaType": {
+          "type": "string",
+          "description": "Varietas pisang yang mengalami susut berat.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "weightKg": {
+          "type": "number",
+          "description": "Berat susut atau selisih timbang (kg)."
+        },
+        "bunches": {
+          "type": "number",
+          "description": "Jumlah tandan penyesuaian (bisa 0)."
+        },
+        "costPricePerKg": {
+          "type": "number",
+          "description": "Modal pokok rata-rata per kg saat pencatatan."
+        },
+        "totalLossAmount": {
+          "type": "number",
+          "description": "Total beban modal akibat penyusutan."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Penyebab penyusutan atau selisih timbang.",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "notes": {
+          "type": "string",
+          "description": "Catatan tambahan opsional.",
+          "maxLength": 500
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Tanggal pencatatan susut (ISO string).",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembuatan dokumen."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp pembaruan dokumen."
+        }
+      },
+      "required": [
+        "id",
+        "lapakId",
+        "createdById",
+        "referenceNumber",
+        "bananaType",
+        "weightKg",
+        "bunches",
+        "costPricePerKg",
+        "totalLossAmount",
+        "reason",
+        "date",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/app_users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/AppUser"
+      },
+      "description": "Koleksi akun pengguna aplikasi (owner/superadmin dan kasir)."
+    },
+    "/lapak/{lapakId}": {
+      "schema": {
+        "$ref": "#/entities/LapakWorkspace"
+      },
+      "description": "Dokumen induk gudang Lapak Pisangku."
+    },
+    "/lapak/{lapakId}/purchases/{purchaseId}": {
+      "schema": {
+        "$ref": "#/entities/FarmerPurchase"
+      },
+      "description": "Koleksi transaksi pembelian pisang dari petani."
+    },
+    "/lapak/{lapakId}/sales/{saleId}": {
+      "schema": {
+        "$ref": "#/entities/CentralWarehouseSale"
+      },
+      "description": "Koleksi transaksi penjualan ke gudang pusat."
+    },
+    "/lapak/{lapakId}/rejects/{rejectId}": {
+      "schema": {
+        "$ref": "#/entities/BananaRejectRecord"
+      },
+      "description": "Koleksi pencatatan stok pisang reject."
+    },
+    "/lapak/{lapakId}/shrinkages/{shrinkageId}": {
+      "schema": {
+        "$ref": "#/entities/BananaShrinkageRecord"
+      },
+      "description": "Koleksi pencatatan susut berat dan selisih timbang."
+    }
+  }
+}

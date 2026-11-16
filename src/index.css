@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    scrollbar-gutter: stable;
+    overflow-anchor: auto;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    color: #1e293b;
+    background-color: #f8fafc;
+    -webkit-font-smoothing: antialiased;
+    overflow-anchor: auto;
+  }
+
+  /* Tabular numbers for all financial figures and weights */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}

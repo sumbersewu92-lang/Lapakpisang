@@ -1,0 +1,8 @@
+{
+  "name": "Remix Lapak Pisangku - Manajemen Gudang Pengepul Pisang",
+  "description": "Sistem aplikasi manajemen lapak dan gudang pengepul pisang mentah: pencatatan pembelian dari petani, inventori stok pisang, dan penjualan ke gudang pusat dengan kalkulasi margin keuntungan otomatis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
