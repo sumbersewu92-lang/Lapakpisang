@@ -25,7 +25,9 @@ export interface FarmerPurchase {
 
 export interface SaleItem {
   bananaType: string;
-  weightKg: number;
+  weightKg: number; // Hasil timbang terjual ke pembeli
+  stockOutWeightKg?: number; // Berat stok keluar dari gudang
+  weightVarianceKg?: number; // Selisih timbang (weightKg - stockOutWeightKg)
   bunches?: number;
   sellPricePerKg: number;
   costPricePerKg: number;
@@ -42,7 +44,9 @@ export interface CentralWarehouseSale {
   buyerPhone?: string;
   bananaType: string;
   items?: SaleItem[];
-  weightKg: number;
+  weightKg: number; // Total hasil timbang terjual
+  stockOutWeightKg?: number; // Total berat stok keluar gudang
+  weightVarianceKg?: number; // Total selisih timbang
   bunches?: number;
   sellPricePerKg: number;
   totalRevenue: number;

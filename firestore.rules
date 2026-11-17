@@ -76,7 +76,7 @@ service cloud.firestore {
     function isValidPurchase(data, lapakId, purchaseId) {
       return data.keys().hasAll([
           'id', 'lapakId', 'createdById', 'receiptNumber', 'farmerName', 'bananaType',
-          'items', 'bunches', 'weightKg', 'buyPricePerKg', 'totalPayment', 'date',
+          'bunches', 'weightKg', 'buyPricePerKg', 'totalPayment', 'date',
           'createdAt', 'updatedAt'
         ]) &&
         data.keys().hasOnly([
@@ -91,7 +91,7 @@ service cloud.firestore {
         data.receiptNumber is string && data.receiptNumber.size() >= 1 && data.receiptNumber.size() <= 64 &&
         data.farmerName is string && data.farmerName.size() >= 1 && data.farmerName.size() <= 150 &&
         data.bananaType is string && data.bananaType.size() >= 1 && data.bananaType.size() <= 200 &&
-        data.items is list && data.items.size() >= 1 && data.items.size() <= 30 && data.items[0] is map &&
+        (!('items' in data) || (data.items is list && data.items.size() >= 1 && data.items.size() <= 30 && data.items[0] is map)) &&
         data.bunches is number && data.bunches >= 0 &&
         data.weightKg is number && data.weightKg > 0 &&
         data.buyPricePerKg is number && data.buyPricePerKg >= 0 &&
@@ -102,42 +102,46 @@ service cloud.firestore {
         data.updatedAt is timestamp;
     }
 
-    // Validation blueprint: BananaStockAdjustment
-    function isValidStockAdjustment(data, lapakId, adjustmentId) {
+    // Validation blueprint: BananaRejectRecord & BananaShrinkageRecord (Koreksi Stok)
+    function isValidStockCorrection(data, lapakId, recordId) {
       return data.keys().hasAll([
-          'id', 'lapakId', 'createdById', 'adjustmentNumber', 'bananaType', 'type',
-          'bunchesDelta', 'weightDeltaKg', 'reason', 'date', 'createdAt', 'updatedAt'
+          'id', 'lapakId', 'createdById', 'referenceNumber', 'bananaType',
+          'weightKg', 'bunches', 'costPricePerKg', 'totalLossAmount', 'reason',
+          'date', 'createdAt', 'updatedAt'
         ]) &&
         data.keys().hasOnly([
-          'id', 'lapakId', 'createdById', 'createdByName', 'adjustmentNumber', 'bananaType', 'type',
-          'bunchesDelta', 'weightDeltaKg', 'reason', 'date', 'createdAt', 'updatedAt'
+          'id', 'lapakId', 'createdById', 'createdByName', 'referenceNumber', 'bananaType',
+          'weightKg', 'bunches', 'costPricePerKg', 'totalLossAmount', 'reason',
+          'notes', 'date', 'createdAt', 'updatedAt'
         ]) &&
-        data.id is string && data.id == adjustmentId && isValidId(data.id) &&
+        data.id is string && data.id == recordId && isValidId(data.id) &&
         data.lapakId is string && data.lapakId == lapakId && isValidId(data.lapakId) &&
         data.createdById is string && isValidId(data.createdById) &&
         isValidOptionalString(data, 'createdByName', 120) &&
-        data.adjustmentNumber is string && data.adjustmentNumber.size() >= 1 && data.adjustmentNumber.size() <= 64 &&
+        data.referenceNumber is string && data.referenceNumber.size() >= 1 && data.referenceNumber.size() <= 64 &&
         data.bananaType is string && data.bananaType.size() >= 1 && data.bananaType.size() <= 120 &&
-        data.type in ['PENAMBAHAN', 'PENGURANGAN', 'REJECT_BUSUK'] &&
-        data.bunchesDelta is number &&
-        data.weightDeltaKg is number &&
+        data.weightKg is number && data.weightKg > 0 &&
+        data.bunches is number && data.bunches >= 0 &&
+        data.costPricePerKg is number && data.costPricePerKg >= 0 &&
+        data.totalLossAmount is number && data.totalLossAmount >= 0 &&
         data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 300 &&
+        isValidOptionalString(data, 'notes', 500) &&
         data.date is string && data.date.size() >= 1 && data.date.size() <= 64 &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
 
-    // Validation blueprint: WarehouseSale
+    // Validation blueprint: CentralWarehouseSale
     function isValidSale(data, lapakId, saleId) {
       return data.keys().hasAll([
           'id', 'lapakId', 'createdById', 'invoiceNumber', 'buyerWarehouseName', 'bananaType',
-          'bunches', 'weightKg', 'costPricePerKg', 'sellPricePerKg', 'totalRevenue', 'estimatedCost',
+          'weightKg', 'sellPricePerKg', 'totalRevenue', 'estimatedCost',
           'netProfit', 'profitMarginPercent', 'date', 'paymentStatus',
           'createdAt', 'updatedAt'
         ]) &&
         data.keys().hasOnly([
           'id', 'lapakId', 'createdById', 'createdByName', 'invoiceNumber', 'buyerWarehouseName', 'buyerWhatsApp',
-          'buyerPhone', 'bananaType', 'bunches', 'weightKg',
+          'buyerPhone', 'bananaType', 'items', 'bunches', 'weightKg', 'stockOutWeightKg', 'weightVarianceKg',
           'costPricePerKg', 'sellPricePerKg', 'totalRevenue', 'estimatedCost', 'netProfit',
           'profitMarginPercent', 'date', 'notes', 'paymentStatus', 'paymentMethod',
           'dueDate', 'paidAt', 'createdAt', 'updatedAt'
@@ -151,9 +155,12 @@ service cloud.firestore {
         isValidOptionalString(data, 'buyerWhatsApp', 40) &&
         isValidOptionalString(data, 'buyerPhone', 40) &&
         data.bananaType is string && data.bananaType.size() >= 1 && data.bananaType.size() <= 120 &&
-        data.bunches is number && data.bunches >= 0 &&
+        (!('items' in data) || (data.items is list && data.items.size() >= 1 && data.items.size() <= 30 && data.items[0] is map)) &&
+        (!('bunches' in data) || (data.bunches is number && data.bunches >= 0)) &&
         data.weightKg is number && data.weightKg > 0 &&
-        data.costPricePerKg is number && data.costPricePerKg >= 0 &&
+        (!('stockOutWeightKg' in data) || (data.stockOutWeightKg is number && data.stockOutWeightKg >= 0)) &&
+        (!('weightVarianceKg' in data) || (data.weightVarianceKg is number)) &&
+        (!('costPricePerKg' in data) || (data.costPricePerKg is number && data.costPricePerKg >= 0)) &&
         data.sellPricePerKg is number && data.sellPricePerKg >= 0 &&
         data.totalRevenue is number && data.totalRevenue >= 0 &&
         data.estimatedCost is number && data.estimatedCost >= 0 &&
@@ -225,18 +232,32 @@ service cloud.firestore {
         allow delete: if isValidId(lapakId) && isValidId(purchaseId) && existing().id == purchaseId;
       }
 
-      // Banana Stock Adjustments Subcollection
-      match /stock_adjustments/{adjustmentId} {
-        allow get: if isValidId(lapakId) && isValidId(adjustmentId) && existing().id == adjustmentId;
+      // Banana Rejects Subcollection (Koreksi Stok / Buah Rusak)
+      match /rejects/{rejectId} {
+        allow get: if isValidId(lapakId) && isValidId(rejectId) && existing().id == rejectId;
         allow list: if resource.data.lapakId == lapakId;
-        allow create: if isValidId(lapakId) && isValidId(adjustmentId) &&
-          isValidStockAdjustment(incoming(), lapakId, adjustmentId) &&
+        allow create: if isValidId(lapakId) && isValidId(rejectId) &&
+          isValidStockCorrection(incoming(), lapakId, rejectId) &&
           incoming().createdAt == request.time &&
           incoming().updatedAt == request.time &&
           hasParentLapak(lapakId) &&
           isActiveAppUser(incoming().createdById);
         allow update: if false;
-        allow delete: if isValidId(lapakId) && isValidId(adjustmentId) && existing().id == adjustmentId;
+        allow delete: if isValidId(lapakId) && isValidId(rejectId) && existing().id == rejectId;
+      }
+
+      // Banana Shrinkages Subcollection (Koreksi Stok / Penyusutan)
+      match /shrinkages/{shrinkageId} {
+        allow get: if isValidId(lapakId) && isValidId(shrinkageId) && existing().id == shrinkageId;
+        allow list: if resource.data.lapakId == lapakId;
+        allow create: if isValidId(lapakId) && isValidId(shrinkageId) &&
+          isValidStockCorrection(incoming(), lapakId, shrinkageId) &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          hasParentLapak(lapakId) &&
+          isActiveAppUser(incoming().createdById);
+        allow update: if false;
+        allow delete: if isValidId(lapakId) && isValidId(shrinkageId) && existing().id == shrinkageId;
       }
 
       // Warehouse Sales Subcollection

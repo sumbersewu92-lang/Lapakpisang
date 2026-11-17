@@ -14,6 +14,7 @@ import {
   formatDateIndo,
   formatDateTimeIndo,
   formatNumber,
+  formatSignedKg,
   formatRupiah,
   formatPaymentMethodLabel
 } from '../data/initialData';
@@ -34,7 +35,7 @@ export interface MutasiLedgerRow {
   order: number;
   tanggalWaktu: string;
   noReferensi: string;
-  jenisMutasi: 'PEMBELIAN' | 'PENJUALAN_LUNAS' | 'PENJUALAN_PIUTANG' | 'SUSUT' | 'REJECT';
+  jenisMutasi: 'PEMBELIAN' | 'PENJUALAN_LUNAS' | 'PENJUALAN_PIUTANG' | 'KOREKSI_STOK';
   uraianTransaksi: string;
   debet: number;
   kredit: number;
@@ -57,6 +58,9 @@ export interface FinancialStatementSummary {
   unpaidSaleCount: number;
   totalPurchasedKg: number;
   totalSoldKg: number;
+  totalStockOutKg: number;
+  totalWeightVarianceKg: number;
+  totalWeightVarianceRp: number;
 }
 
 function parseDateBounds(startDate: string, endDate: string): { startMs: number; endMs: number } {
@@ -153,6 +157,10 @@ export function buildFinancialStatement(input: FinancialExportInput): FinancialS
             .map((it) => `${it.bananaType} ${formatNumber(it.weightKg)} kg (@${formatRupiah(it.sellPricePerKg)}/kg)`)
             .join('; ')
         : `${s.bananaType} ${formatNumber(s.weightKg)} kg${(s.bunches ?? 0) > 0 ? ` (${formatNumber(s.bunches ?? 0)} tdn)` : ''} @${formatRupiah(s.sellPricePerKg)}/kg`;
+    const varianceSuffix =
+      s.weightVarianceKg !== undefined && Math.abs(s.weightVarianceKg) > 0.001
+        ? ` · Stok keluar ${formatNumber(s.stockOutWeightKg ?? s.weightKg)} kg, Selisih timbang ${formatSignedKg(s.weightVarianceKg)}`
+        : '';
 
     rawEvents.push({
       ts: Number.isFinite(ts) ? ts : 0,
@@ -160,7 +168,7 @@ export function buildFinancialStatement(input: FinancialExportInput): FinancialS
       tanggalWaktu: formatStatementDateTime(s.date),
       noReferensi: s.invoiceNumber,
       jenisMutasi: isPaid ? 'PENJUALAN_LUNAS' : 'PENJUALAN_PIUTANG',
-      uraianTransaksi: `Penjualan ke Gudang: ${s.buyerWarehouseName} [${statusDesc}] (${detail})`,
+      uraianTransaksi: `Penjualan ke Gudang: ${s.buyerWarehouseName} [${statusDesc}] (${detail}${varianceSuffix})`,
       debet: 0,
       kredit: isPaid ? Math.round(s.totalRevenue || 0) : 0
     });
@@ -173,8 +181,8 @@ export function buildFinancialStatement(input: FinancialExportInput): FinancialS
       order: 2,
       tanggalWaktu: formatStatementDateTime(sh.date),
       noReferensi: sh.referenceNumber,
-      jenisMutasi: 'SUSUT',
-      uraianTransaksi: `Catatan Susut / Selisih Timbang: ${sh.bananaType} ${formatNumber(sh.weightKg)} kg (${sh.reason} · Beban Modal ${formatRupiah(sh.totalLossAmount)})`,
+      jenisMutasi: 'KOREKSI_STOK',
+      uraianTransaksi: `Koreksi Stok: ${sh.bananaType} ${formatNumber(sh.weightKg)} kg (${sh.reason} · Beban Modal ${formatRupiah(sh.totalLossAmount)})`,
       debet: 0,
       kredit: 0
     });
@@ -187,8 +195,8 @@ export function buildFinancialStatement(input: FinancialExportInput): FinancialS
       order: 3,
       tanggalWaktu: formatStatementDateTime(r.date),
       noReferensi: r.referenceNumber,
-      jenisMutasi: 'REJECT',
-      uraianTransaksi: `Catatan Stok Reject: ${r.bananaType} ${formatNumber(r.weightKg)} kg (${r.reason} · Beban Modal ${formatRupiah(r.totalLossAmount)})`,
+      jenisMutasi: 'KOREKSI_STOK',
+      uraianTransaksi: `Koreksi Stok: ${r.bananaType} ${formatNumber(r.weightKg)} kg (${r.reason} · Beban Modal ${formatRupiah(r.totalLossAmount)})`,
       debet: 0,
       kredit: 0
     });
@@ -216,6 +224,22 @@ export function buildFinancialStatement(input: FinancialExportInput): FinancialS
 
   const totalPurchasedKg = Math.round(filteredPurchases.reduce((acc, p) => acc + (p.weightKg || 0), 0) * 100) / 100;
   const totalSoldKg = Math.round(filteredSales.reduce((acc, s) => acc + (s.weightKg || 0), 0) * 100) / 100;
+  const totalStockOutKg =
+    Math.round(filteredSales.reduce((acc, s) => acc + (s.stockOutWeightKg ?? s.weightKg ?? 0), 0) * 100) / 100;
+  const totalWeightVarianceKg = Math.round((totalSoldKg - totalStockOutKg) * 100) / 100;
+  const totalWeightVarianceRp = filteredSales.reduce((acc, s) => {
+    if (s.items && s.items.length > 0) {
+      const itemsVarRp = s.items.reduce((sum, it) => {
+        const stockOut = it.stockOutWeightKg ?? it.weightKg ?? 0;
+        const varKg = it.weightVarianceKg ?? (it.weightKg ?? 0) - stockOut;
+        return sum + Math.round(varKg * (it.sellPricePerKg || 0));
+      }, 0);
+      return acc + itemsVarRp;
+    }
+    const stockOut = s.stockOutWeightKg ?? s.weightKg ?? 0;
+    const varKg = s.weightVarianceKg ?? (s.weightKg ?? 0) - stockOut;
+    return acc + Math.round(varKg * (s.sellPricePerKg || 0));
+  }, 0);
 
   return {
     startDate: input.startDate,
@@ -232,7 +256,10 @@ export function buildFinancialStatement(input: FinancialExportInput): FinancialS
     paidSaleCount: paidSales.length,
     unpaidSaleCount: unpaidSales.length,
     totalPurchasedKg,
-    totalSoldKg
+    totalSoldKg,
+    totalStockOutKg,
+    totalWeightVarianceKg,
+    totalWeightVarianceRp
   };
 }
 
@@ -325,7 +352,10 @@ export function exportFinancialStatementPDF(summary: FinancialStatementSummary):
     {
       label: 'LABA BERSIH TERWUJUD',
       value: formatSignedRupiah(summary.labaBersihTerwujud),
-      sub: `Volume terjual: ${formatNumber(summary.totalSoldKg)} kg`,
+      sub:
+        Math.abs(summary.totalWeightVarianceKg) > 0.001
+          ? `Timbang: ${formatNumber(summary.totalSoldKg)} kg (${formatSignedKg(summary.totalWeightVarianceKg)})`
+          : `Timbang Gudang: ${formatNumber(summary.totalSoldKg)} kg`,
       accent: [emeraldR, emeraldG, emeraldB] as const
     }
   ];
@@ -521,7 +551,10 @@ export function exportFinancialStatementCSV(summary: FinancialStatementSummary):
   row(['Total Kas Masuk Lunas (Penjualan Gudang)', summary.totalKasMasukLunas]);
   row(['Total Piutang Gudang (Belum Cair)', summary.totalPiutangGudang]);
   row(['Total Berat Beli Pisang (kg)', summary.totalPurchasedKg]);
-  row(['Total Berat Terjual ke Gudang (kg)', summary.totalSoldKg]);
+  row(['Total Berat Stok Keluar (kg)', summary.totalStockOutKg]);
+  row(['Total Berat Timbang Gudang (kg)', summary.totalSoldKg]);
+  row(['Net Selisih Timbang Gudang (kg)', summary.totalWeightVarianceKg]);
+  row(['Net Selisih Timbang Gudang (Rp)', summary.totalWeightVarianceRp]);
   row(['Laba Bersih Terwujud', summary.labaBersihTerwujud]);
   row(['Saldo Arus Kas Akhir (Kredit - Debet)', summary.saldoArusKasAkhir]);
   lines.push('');

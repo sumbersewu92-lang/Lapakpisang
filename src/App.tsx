@@ -217,7 +217,13 @@ export default function App() {
       (snapshot) => {
         const list = snapshot.docs.map((d) => {
           const raw = d.data() as CentralWarehouseSale & Record<string, unknown>;
-          const fallbackWeight = Number(raw.weightKg ?? raw.dispatchedWeightKg ?? raw.warehouseWeightKg ?? 0);
+          const fallbackWeight = Number(raw.weightKg ?? raw.warehouseWeightKg ?? raw.dispatchedWeightKg ?? 0);
+          const weightKg = Number.isFinite(fallbackWeight) ? fallbackWeight : 0;
+          const rawStockOut = raw.stockOutWeightKg ?? raw.dispatchedWeightKg ?? weightKg;
+          const stockOutWeightKg = Number.isFinite(Number(rawStockOut)) ? Number(rawStockOut) : weightKg;
+          const weightVarianceKg = Number.isFinite(Number(raw.weightVarianceKg))
+            ? Number(raw.weightVarianceKg)
+            : Math.round((weightKg - stockOutWeightKg) * 100) / 100;
           return {
             ...raw,
             id: raw.id || d.id,
@@ -227,7 +233,9 @@ export default function App() {
               raw.bananaType ||
               (typeof raw.coffeeType === 'string' ? raw.coffeeType : '') ||
               'Pisang',
-            weightKg: Number.isFinite(fallbackWeight) ? fallbackWeight : 0,
+            weightKg,
+            stockOutWeightKg,
+            weightVarianceKg,
             sellPricePerKg: Number.isFinite(Number(raw.sellPricePerKg)) ? Number(raw.sellPricePerKg) : 0,
             totalRevenue: Number.isFinite(Number(raw.totalRevenue)) ? Number(raw.totalRevenue) : 0,
             estimatedCost: Number.isFinite(Number(raw.estimatedCost)) ? Number(raw.estimatedCost) : 0,
@@ -457,6 +465,14 @@ export default function App() {
       .map((it) => {
         const bananaType = normalizeVarietyName(String(it.bananaType || ''));
         const weightKg = safeNum(it.weightKg);
+        const stockOutWeightKg =
+          it.stockOutWeightKg !== undefined
+            ? roundWeight(safeNum(it.stockOutWeightKg))
+            : roundWeight(weightKg);
+        const weightVarianceKg =
+          it.weightVarianceKg !== undefined
+            ? roundWeight(safeNum(it.weightVarianceKg))
+            : roundWeight(weightKg - stockOutWeightKg);
         const bunches =
           it.bunches !== undefined ? Math.max(0, Math.trunc(safeNum(it.bunches))) : 0;
         const sellPricePerKg = safeNum(it.sellPricePerKg);
@@ -464,7 +480,7 @@ export default function App() {
         const subtotalRevenue =
           safeNum(it.subtotalRevenue) || Math.round(weightKg * sellPricePerKg);
         const subtotalCost =
-          safeNum(it.subtotalCost) || Math.round(weightKg * costPricePerKg);
+          safeNum(it.subtotalCost) || Math.round(stockOutWeightKg * costPricePerKg);
         const subtotalProfit =
           it.subtotalProfit !== undefined
             ? safeNum(it.subtotalProfit)
@@ -472,6 +488,8 @@ export default function App() {
         return {
           bananaType,
           weightKg,
+          stockOutWeightKg,
+          weightVarianceKg,
           bunches,
           sellPricePerKg,
           costPricePerKg,
@@ -492,10 +510,21 @@ export default function App() {
       return [];
     }
 
+    const fallbackStockOut =
+      s.stockOutWeightKg !== undefined
+        ? roundWeight(safeNum(s.stockOutWeightKg))
+        : roundWeight(fallbackWeight);
+    const fallbackVariance =
+      s.weightVarianceKg !== undefined
+        ? roundWeight(safeNum(s.weightVarianceKg))
+        : roundWeight(fallbackWeight - fallbackStockOut);
+
     return [
       {
         bananaType: fallbackType,
         weightKg: fallbackWeight,
+        stockOutWeightKg: fallbackStockOut,
+        weightVarianceKg: fallbackVariance,
         bunches: s.bunches !== undefined ? Math.max(0, Math.trunc(safeNum(s.bunches))) : 0,
         sellPricePerKg: safeNum(s.sellPricePerKg),
         costPricePerKg: 0,
@@ -590,18 +619,20 @@ export default function App() {
       });
     });
 
-    // 2. Collect sales deduction events per variety
+    // 2. Collect sales deduction events per variety (using stockOutWeightKg as warehouse deduction)
     sales.forEach((s) => {
       const ts = parseEventTime(s.date);
       const items = extractSaleItems(s);
       items.forEach((it) => {
         const bucket = ensureVarietyBucket(it.bananaType);
         if (!bucket) return;
+        const deductedStockKg =
+          it.stockOutWeightKg !== undefined ? it.stockOutWeightKg : it.weightKg;
         bucket.events.push({
           kind: 'sale',
           ts,
           order: 1,
-          weightKg: it.weightKg,
+          weightKg: deductedStockKg,
           bunches: safeNum(it.bunches)
         });
       });
@@ -893,19 +924,41 @@ export default function App() {
 
     const cleanedItems =
       newSaleData.items && newSaleData.items.length > 0
-        ? newSaleData.items.slice(0, 20).map((it) =>
-            stripUndefined({
+        ? newSaleData.items.slice(0, 20).map((it) => {
+            const itemWeightKg = roundWeight(safeNum(it.weightKg));
+            const itemStockOutKg =
+              it.stockOutWeightKg !== undefined
+                ? roundWeight(safeNum(it.stockOutWeightKg))
+                : itemWeightKg;
+            const itemVarianceKg =
+              it.weightVarianceKg !== undefined
+                ? roundWeight(safeNum(it.weightVarianceKg))
+                : roundWeight(itemWeightKg - itemStockOutKg);
+
+            return stripUndefined({
               bananaType: clampStr(normalizeVarietyName(it.bananaType), 120),
-              weightKg: roundWeight(safeNum(it.weightKg)),
+              weightKg: itemWeightKg,
+              stockOutWeightKg: itemStockOutKg,
+              weightVarianceKg: itemVarianceKg,
               bunches: it.bunches !== undefined ? safeNum(it.bunches) : undefined,
               sellPricePerKg: safeNum(it.sellPricePerKg),
               costPricePerKg: safeNum(it.costPricePerKg),
               subtotalRevenue: Math.round(safeNum(it.subtotalRevenue)),
               subtotalCost: Math.round(safeNum(it.subtotalCost)),
               subtotalProfit: Math.round(safeNum(it.subtotalProfit))
-            })
-          )
+            });
+          })
         : undefined;
+
+    const totalWeighedKg = roundWeight(safeNum(newSaleData.weightKg));
+    const totalStockOutKg =
+      newSaleData.stockOutWeightKg !== undefined
+        ? roundWeight(safeNum(newSaleData.stockOutWeightKg))
+        : totalWeighedKg;
+    const totalVarianceKg =
+      newSaleData.weightVarianceKg !== undefined
+        ? roundWeight(safeNum(newSaleData.weightVarianceKg))
+        : roundWeight(totalWeighedKg - totalStockOutKg);
 
     const payload = stripUndefined({
       id: docId,
@@ -918,7 +971,9 @@ export default function App() {
       buyerPhone: newSaleData.buyerPhone ? clampStr(newSaleData.buyerPhone, 40) : undefined,
       bananaType: clampStr(newSaleData.bananaType, 120) || 'Pisang',
       items: cleanedItems,
-      weightKg: roundWeight(safeNum(newSaleData.weightKg)),
+      weightKg: totalWeighedKg,
+      stockOutWeightKg: totalStockOutKg,
+      weightVarianceKg: totalVarianceKg,
       bunches: newSaleData.bunches !== undefined ? safeNum(newSaleData.bunches) : undefined,
       sellPricePerKg: safeNum(newSaleData.sellPricePerKg),
       totalRevenue: Math.round(safeNum(newSaleData.totalRevenue)),
@@ -1249,6 +1304,8 @@ export default function App() {
             <StatCards
               activeTab={activeTab}
               totalStockKg={stats.totalStockKg}
+              totalStockBunches={stats.totalStockBunches}
+              varietyCount={stockList.filter((s) => s.stockKg > 0).length}
               totalCapitalSpent={stats.totalCapitalSpent}
               totalRealizedRevenue={stats.totalRealizedRevenue}
               totalRealizedProfit={stats.totalRealizedProfit}

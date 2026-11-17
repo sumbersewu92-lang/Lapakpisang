@@ -222,7 +222,7 @@ export const StatCards: React.FC<StatCardsProps> = ({
             </div>
             <div className="mt-1.5 pt-1.5 border-t border-white/15 flex items-center justify-between gap-2 text-[10.5px] text-emerald-100/90">
               <span className="truncate">
-                {combinedLoss > 0 ? 'Susut & Reject' : 'Sisa Stok Gudang'}
+                {combinedLoss > 0 ? 'Koreksi Stok' : 'Sisa Stok Gudang'}
               </span>
               <span className="font-semibold font-mono tabular-nums text-white shrink-0">
                 {combinedLoss > 0 ? `-${formatRupiah(combinedLoss)}` : `${formatNumber(totalStockKg)} kg`}

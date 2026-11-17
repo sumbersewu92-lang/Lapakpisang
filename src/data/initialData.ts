@@ -38,6 +38,14 @@ export const SHRINKAGE_REASONS = [
   'Lainnya'
 ] as const;
 
+export const STOCK_CORRECTION_REASONS = [
+  'Busuk / Rusak di Gudang (Dibuang)',
+  'Tidak Lolos Sortir Mutu',
+  'Susut Kadar Air / Penguapan',
+  'Selisih Timbangan / Opname Gudang',
+  'Lainnya'
+] as const;
+
 export const INITIAL_REJECTS: BananaRejectRecord[] = [];
 export const INITIAL_SHRINKAGES: BananaShrinkageRecord[] = [];
 export const INITIAL_PURCHASES: FarmerPurchase[] = [];

@@ -24,6 +24,7 @@ import {
   formatSignedRupiah,
   formatPaymentMethodLabel,
   formatNumber,
+  formatSignedKg,
   formatDateTimeIndo,
   formatDateIndo,
   toLocalDateInput
@@ -129,6 +130,35 @@ export const TabFinancialReport: React.FC<TabFinancialReportProps> = ({
     () => Math.round(filteredSales.reduce((acc, s) => acc + (s.weightKg || 0), 0) * 100) / 100,
     [filteredSales]
   );
+
+  const totalStockOutKg = useMemo(
+    () =>
+      Math.round(
+        filteredSales.reduce((acc, s) => acc + (s.stockOutWeightKg ?? s.weightKg ?? 0), 0) * 100
+      ) / 100,
+    [filteredSales]
+  );
+
+  const totalVarianceKg = useMemo(
+    () => Math.round((totalSoldKg - totalStockOutKg) * 100) / 100,
+    [totalSoldKg, totalStockOutKg]
+  );
+
+  const totalVarianceRp = useMemo(() => {
+    return filteredSales.reduce((acc, s) => {
+      if (s.items && s.items.length > 0) {
+        const itemsVarRp = s.items.reduce((sum, it) => {
+          const stockOut = it.stockOutWeightKg ?? it.weightKg ?? 0;
+          const varKg = it.weightVarianceKg ?? (it.weightKg ?? 0) - stockOut;
+          return sum + Math.round(varKg * (it.sellPricePerKg || 0));
+        }, 0);
+        return acc + itemsVarRp;
+      }
+      const stockOut = s.stockOutWeightKg ?? s.weightKg ?? 0;
+      const varKg = s.weightVarianceKg ?? (s.weightKg ?? 0) - stockOut;
+      return acc + Math.round(varKg * (s.sellPricePerKg || 0));
+    }, 0);
+  }, [filteredSales]);
 
   const totalReceivables = useMemo(
     () =>
@@ -374,7 +404,7 @@ export const TabFinancialReport: React.FC<TabFinancialReportProps> = ({
                 {formatRupiah(totalRevenue)}
               </span>
               <span className="text-[10px] text-emerald-700 font-medium mt-1 block">
-                Volume Terjual: {formatNumber(totalSoldKg)} kg
+                Timbang Gudang: {formatNumber(totalSoldKg)} kg
               </span>
             </div>
 
@@ -390,6 +420,73 @@ export const TabFinancialReport: React.FC<TabFinancialReportProps> = ({
               </span>
               <span className="text-[10px] text-amber-800 mt-1 block">
                 Transfer susulan gudang
+              </span>
+            </div>
+
+            <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
+              <span className="text-xs font-semibold text-stone-600 block mb-1">
+                Kas Masuk (Lunas)
+              </span>
+              <span className="text-base sm:text-lg font-extrabold text-emerald-700 font-mono tabular-nums block">
+                {formatRupiah(totalPaidRevenue)}
+              </span>
+              <span className="text-[10px] text-stone-400 mt-1 block">
+                Dana efektif di rekening
+              </span>
+            </div>
+          </div>
+
+          {/* Row 2: 3 Ringkasan Timbang & Laba Bersih */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            <div className="bg-stone-50 rounded-xl p-4 border border-stone-200">
+              <span className="text-xs font-semibold text-stone-600 block mb-1">
+                Volume Keluar vs Timbang Gudang
+              </span>
+              <span className="text-base sm:text-lg font-extrabold text-stone-900 font-mono tabular-nums block">
+                {formatNumber(totalStockOutKg)} → {formatNumber(totalSoldKg)} kg
+              </span>
+              <span className="text-[10px] text-stone-400 mt-1 block">
+                Perbandingan berat berangkat &amp; timbang terima gudang
+              </span>
+            </div>
+
+            <div
+              className={`rounded-xl p-4 border ${
+                Math.abs(totalVarianceKg) < 0.01
+                  ? 'bg-stone-50 border-stone-200'
+                  : totalVarianceKg > 0
+                  ? 'bg-emerald-50/60 border-emerald-200'
+                  : 'bg-amber-50/70 border-amber-200'
+              }`}
+            >
+              <span className="text-xs font-semibold text-stone-600 block mb-1">
+                Net Selisih Timbang Gudang (+/-)
+              </span>
+              <span
+                className={`text-base sm:text-lg font-extrabold font-mono tabular-nums block ${
+                  Math.abs(totalVarianceKg) < 0.01
+                    ? 'text-stone-900'
+                    : totalVarianceKg > 0
+                    ? 'text-emerald-700'
+                    : 'text-amber-800'
+                }`}
+              >
+                {formatSignedRupiah(totalVarianceRp)} ({formatSignedKg(totalVarianceKg)})
+              </span>
+              <span
+                className={`text-[10px] mt-1 block ${
+                  Math.abs(totalVarianceKg) < 0.01
+                    ? 'text-stone-400'
+                    : totalVarianceKg > 0
+                    ? 'text-emerald-700'
+                    : 'text-amber-800'
+                }`}
+              >
+                {Math.abs(totalVarianceKg) < 0.01
+                  ? 'Timbang gudang tepat sama dengan berat kirim'
+                  : totalVarianceKg > 0
+                  ? 'Surplus selisih timbang terima gudang (+nilai jual)'
+                  : 'Susut selisih timbang terima gudang (-nilai jual)'}
               </span>
             </div>
 
@@ -534,9 +631,22 @@ export const TabFinancialReport: React.FC<TabFinancialReportProps> = ({
                         </div>
                       </div>
 
-                      <div className="p-2 rounded-lg bg-white border border-stone-200/80 flex items-center justify-between text-[11px]">
+                      <div className="p-2 rounded-lg bg-white border border-stone-200/80 flex items-center justify-between gap-2 text-[11px]">
                         <span className="font-semibold text-emerald-800">{sale.bananaType}</span>
-                        <span className="font-mono font-bold text-stone-700">{formatNumber(sale.weightKg)} kg</span>
+                        <div className="text-right">
+                          <span className="font-mono font-bold text-stone-700 block">
+                            {formatNumber(sale.weightKg)} kg
+                          </span>
+                          {sale.weightVarianceKg !== undefined && Math.abs(sale.weightVarianceKg) > 0.001 && (
+                            <span
+                              className={`text-[9.5px] font-mono block ${
+                                sale.weightVarianceKg > 0 ? 'text-emerald-700' : 'text-amber-800'
+                              }`}
+                            >
+                              Selisih: {formatSignedKg(sale.weightVarianceKg)}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 pt-2 border-t border-stone-200/70 text-xs">
@@ -596,10 +706,19 @@ export const TabFinancialReport: React.FC<TabFinancialReportProps> = ({
 
               <div className="p-3.5 bg-stone-50 rounded-xl border border-stone-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                 <div>
-                  <span className="text-[10px] text-stone-500 block">Volume Terjual</span>
-                  <strong className="font-mono text-stone-900 tabular-nums">
+                  <span className="text-[10px] text-stone-500 block">Timbang Gudang</span>
+                  <strong className="font-mono text-stone-900 tabular-nums block">
                     {formatNumber(totalSoldKg)} kg
                   </strong>
+                  {Math.abs(totalVarianceKg) > 0.001 && (
+                    <span
+                      className={`text-[9.5px] font-mono block ${
+                        totalVarianceKg > 0 ? 'text-emerald-700' : 'text-amber-800'
+                      }`}
+                    >
+                      Selisih: {formatSignedKg(totalVarianceKg)}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] text-stone-500 block">Total Omset</span>
@@ -669,6 +788,15 @@ export const TabFinancialReport: React.FC<TabFinancialReportProps> = ({
                           <div className="font-semibold text-stone-800">
                             {formatNumber(sale.weightKg)} kg
                           </div>
+                          {sale.weightVarianceKg !== undefined && Math.abs(sale.weightVarianceKg) > 0.001 && (
+                            <span
+                              className={`text-[10px] block ${
+                                sale.weightVarianceKg > 0 ? 'text-emerald-700' : 'text-amber-800'
+                              }`}
+                            >
+                              Keluar {formatNumber(sale.stockOutWeightKg ?? sale.weightKg)} kg · Selisih {formatSignedKg(sale.weightVarianceKg)}
+                            </span>
+                          )}
                           {(sale.bunches ?? 0) > 0 && (
                             <span className="text-[10px] text-stone-400 block">
                               {formatNumber(sale.bunches ?? 0)} tandan
@@ -755,7 +883,16 @@ export const TabFinancialReport: React.FC<TabFinancialReportProps> = ({
                       TOTAL PERIODE INI
                     </td>
                     <td className="py-3 px-3 text-right font-mono tabular-nums whitespace-nowrap">
-                      {formatNumber(totalSoldKg)} kg
+                      <div>{formatNumber(totalSoldKg)} kg</div>
+                      {Math.abs(totalVarianceKg) > 0.001 && (
+                        <div
+                          className={`text-[10px] font-medium ${
+                            totalVarianceKg > 0 ? 'text-emerald-700' : 'text-amber-800'
+                          }`}
+                        >
+                          Keluar {formatNumber(totalStockOutKg)} kg · Selisih {formatSignedKg(totalVarianceKg)}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 px-3 text-right font-mono tabular-nums text-stone-900">
                       {formatRupiah(totalRevenue)}

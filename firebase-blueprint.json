@@ -206,7 +206,6 @@
         "receiptNumber",
         "farmerName",
         "bananaType",
-        "items",
         "bunches",
         "weightKg",
         "buyPricePerKg",
@@ -216,9 +215,9 @@
         "updatedAt"
       ]
     },
-    "BananaStockAdjustment": {
-      "title": "BananaStockAdjustment",
-      "description": "Catatan penyesuaian stok gudang atau reject/penyusutan buah pisang per varietas.",
+    "BananaRejectRecord": {
+      "title": "BananaRejectRecord",
+      "description": "Catatan koreksi stok / buah rusak atau reject di luar penjualan.",
       "type": "object",
       "properties": {
         "id": {
@@ -240,7 +239,7 @@
           "type": "string",
           "maxLength": 120
         },
-        "adjustmentNumber": {
+        "referenceNumber": {
           "type": "string",
           "minLength": 1,
           "maxLength": 64
@@ -250,20 +249,26 @@
           "minLength": 1,
           "maxLength": 120
         },
-        "type": {
-          "type": "string",
-          "enum": ["PENAMBAHAN", "PENGURANGAN", "REJECT_BUSUK"]
-        },
-        "bunchesDelta": {
+        "weightKg": {
           "type": "number"
         },
-        "weightDeltaKg": {
+        "bunches": {
+          "type": "number"
+        },
+        "costPricePerKg": {
+          "type": "number"
+        },
+        "totalLossAmount": {
           "type": "number"
         },
         "reason": {
           "type": "string",
           "minLength": 1,
           "maxLength": 300
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
         },
         "date": {
           "type": "string",
@@ -283,20 +288,106 @@
         "id",
         "lapakId",
         "createdById",
-        "adjustmentNumber",
+        "referenceNumber",
         "bananaType",
-        "type",
-        "bunchesDelta",
-        "weightDeltaKg",
+        "weightKg",
+        "bunches",
+        "costPricePerKg",
+        "totalLossAmount",
         "reason",
         "date",
         "createdAt",
         "updatedAt"
       ]
     },
-    "WarehouseSale": {
-      "title": "WarehouseSale",
-      "description": "Faktur penjualan pisang mentah per varietas ke gudang pusat dengan kalkulasi laba bersih dan status piutang.",
+    "BananaShrinkageRecord": {
+      "title": "BananaShrinkageRecord",
+      "description": "Catatan koreksi stok gudang (penyusutan, opname, atau buah rusak di luar penjualan).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "lapakId": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdById": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdByName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "referenceNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "bananaType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "weightKg": {
+          "type": "number"
+        },
+        "bunches": {
+          "type": "number"
+        },
+        "costPricePerKg": {
+          "type": "number"
+        },
+        "totalLossAmount": {
+          "type": "number"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "lapakId",
+        "createdById",
+        "referenceNumber",
+        "bananaType",
+        "weightKg",
+        "bunches",
+        "costPricePerKg",
+        "totalLossAmount",
+        "reason",
+        "date",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CentralWarehouseSale": {
+      "title": "CentralWarehouseSale",
+      "description": "Faktur penjualan pisang mentah ke gudang pusat dengan pelacakan berat stok keluar, hasil timbang, selisih timbang, dan status piutang.",
       "type": "object",
       "properties": {
         "id": {
@@ -341,11 +432,24 @@
           "minLength": 1,
           "maxLength": 120
         },
+        "items": {
+          "type": "array",
+          "description": "Daftar rincian komoditas dalam surat jalan (1-30 item)."
+        },
         "bunches": {
           "type": "number"
         },
         "weightKg": {
-          "type": "number"
+          "type": "number",
+          "description": "Total hasil timbang terjual ke pembeli (kg)."
+        },
+        "stockOutWeightKg": {
+          "type": "number",
+          "description": "Total berat stok keluar dari gudang lapak (kg)."
+        },
+        "weightVarianceKg": {
+          "type": "number",
+          "description": "Selisih timbang (weightKg - stockOutWeightKg)."
         },
         "costPricePerKg": {
           "type": "number"
@@ -406,9 +510,7 @@
         "invoiceNumber",
         "buyerWarehouseName",
         "bananaType",
-        "bunches",
         "weightKg",
-        "costPricePerKg",
         "sellPricePerKg",
         "totalRevenue",
         "estimatedCost",
@@ -440,11 +542,17 @@
       },
       "description": "Koleksi transaksi pembelian pisang dari petani."
     },
-    "/lapak/{lapakId}/stock_adjustments/{adjustmentId}": {
+    "/lapak/{lapakId}/rejects/{rejectId}": {
       "schema": {
-        "$ref": "#/entities/BananaStockAdjustment"
+        "$ref": "#/entities/BananaRejectRecord"
       },
-      "description": "Koleksi penyesuaian stok & reject/penyusutan buah pisang."
+      "description": "Koleksi catatan koreksi stok / buah reject di luar penjualan."
+    },
+    "/lapak/{lapakId}/shrinkages/{shrinkageId}": {
+      "schema": {
+        "$ref": "#/entities/BananaShrinkageRecord"
+      },
+      "description": "Koleksi catatan koreksi stok gudang (penyusutan & penyesuaian)."
     },
     "/lapak/{lapakId}/sales/{saleId}": {
       "schema": {

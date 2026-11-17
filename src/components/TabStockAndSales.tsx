@@ -16,7 +16,6 @@ import {
   Plus,
   AlertCircle,
   Phone,
-  PackageX,
   RotateCcw,
   ArrowUpRight,
   Scale,
@@ -27,12 +26,12 @@ import {
   MAIN_BANANA_TYPES,
   TYPICAL_BUY_PRICES,
   TYPICAL_SELL_PRICES, 
-  REJECT_REASONS,
-  SHRINKAGE_REASONS,
+  STOCK_CORRECTION_REASONS,
   formatRupiah, 
   formatSignedRupiah,
   formatPaymentMethodLabel,
   formatNumber, 
+  formatSignedKg,
   formatDateTimeIndo,
   formatDateIndo,
   toLocalDateInput,
@@ -64,8 +63,10 @@ interface TabStockAndSalesProps {
 interface CartItemState {
   id: string;
   bananaType: string;
+  stockOutWeightKg: string;
   weightKg: string;
   sellPricePerKg: string;
+  isWeighedEdited?: boolean;
 }
 
 export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
@@ -92,21 +93,16 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
   // State Pop-up Modal Konfirmasi Hapus Riwayat Pengiriman
   const [saleToDelete, setSaleToDelete] = useState<CentralWarehouseSale | null>(null);
 
-  // State Modal Catat Stok Pisang Reject & Hapus Reject
-  const [rejectTargetStock, setRejectTargetStock] = useState<BananaStockSummary | null>(null);
-  const [rejectWeightKg, setRejectWeightKg] = useState<string>('');
-  const [rejectReason, setRejectReason] = useState<string>(REJECT_REASONS[0]);
-  const [rejectNotes, setRejectNotes] = useState<string>('');
-  const [rejectModalError, setRejectModalError] = useState<string>('');
-  const [rejectToDelete, setRejectToDelete] = useState<BananaRejectRecord | null>(null);
-
-  // State Modal Catat Susut Berat / Selisih Timbang & Hapus Susut
-  const [shrinkageTargetStock, setShrinkageTargetStock] = useState<BananaStockSummary | null>(null);
-  const [shrinkageWeightKg, setShrinkageWeightKg] = useState<string>('');
-  const [shrinkageReason, setShrinkageReason] = useState<string>(SHRINKAGE_REASONS[0]);
-  const [shrinkageNotes, setShrinkageNotes] = useState<string>('');
-  const [shrinkageModalError, setShrinkageModalError] = useState<string>('');
-  const [shrinkageToDelete, setShrinkageToDelete] = useState<BananaShrinkageRecord | null>(null);
+  // State Modal Koreksi Stok (Gabungan Reject / Buah Rusak & Susut di Luar Penjualan)
+  const [correctionTargetStock, setCorrectionTargetStock] = useState<BananaStockSummary | null>(null);
+  const [correctionWeightKg, setCorrectionWeightKg] = useState<string>('');
+  const [correctionReason, setCorrectionReason] = useState<string>(STOCK_CORRECTION_REASONS[0]);
+  const [correctionNotes, setCorrectionNotes] = useState<string>('');
+  const [correctionModalError, setCorrectionModalError] = useState<string>('');
+  const [correctionToDelete, setCorrectionToDelete] = useState<{
+    source: 'shrinkage' | 'reject';
+    record: BananaRejectRecord | BananaShrinkageRecord;
+  } | null>(null);
 
   // Modal Checkout State
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState<boolean>(false);
@@ -149,13 +145,16 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
     const existingIndex = cartItems.findIndex(it => isSameVariety(it.bananaType, stockItem.bananaType));
 
     if (existingIndex < 0) {
+      const initialStockStr = String(stockItem.stockKg);
       setCartItems(prev => [
         ...prev,
         {
           id: `cart-${Date.now()}-${Math.random()}`,
           bananaType: stockItem.bananaType,
-          weightKg: String(stockItem.stockKg),
-          sellPricePerKg: '' // Default awal kosong sehingga menampilkan placeholder "Rp. 0" untuk input manual
+          stockOutWeightKg: initialStockStr,
+          weightKg: '', // Wajib diisi manual; placeholder "0 kg"
+          sellPricePerKg: '', // Default awal kosong sehingga menampilkan placeholder "Rp. 0" untuk input manual
+          isWeighedEdited: false
         }
       ]);
     }
@@ -184,19 +183,6 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
     restore();
   };
 
-  // Explicit helper functions
-  const removeItem = (index: number, e?: React.MouseEvent) => {
-    handleRemoveCartItem(index, undefined, undefined, e);
-  };
-
-  const deleteCartItem = (id: string, e?: React.MouseEvent) => {
-    handleRemoveCartItem(-1, id, undefined, e);
-  };
-
-  const handleRemoveFromCart = (idOrType: string, e?: React.MouseEvent) => {
-    handleRemoveCartItem(-1, idOrType, idOrType, e);
-  };
-
   // Action: Clear entire cart (100% reliable, direct state reset)
   const handleClearCart = (e?: React.MouseEvent) => {
     if (e) {
@@ -209,13 +195,39 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
     restore();
   };
 
-  // Action: Update cart item field
-  const handleUpdateCartField = (id: string, field: keyof CartItemState, value: string) => {
-    setCartItems(prev => prev.map(item => {
-      if (item.id === id) {
-        return { ...item, [field]: value };
+  const sanitizeWeightInput = (raw: string): string => {
+    const cleaned = raw.replace(/[^0-9.,]/g, '');
+    let hasSep = false;
+    let out = '';
+    for (const ch of cleaned) {
+      if (ch === '.' || ch === ',') {
+        if (!hasSep) {
+          out += ch;
+          hasSep = true;
+        }
+      } else {
+        out += ch;
       }
-      return item;
+    }
+    return out;
+  };
+
+  // Action: Update cart item field
+  const handleUpdateCartField = (
+    id: string,
+    field: 'weightKg' | 'sellPricePerKg',
+    value: string
+  ) => {
+    setCartItems(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      if (field === 'weightKg') {
+        return {
+          ...item,
+          weightKg: sanitizeWeightInput(value),
+          isWeighedEdited: true
+        };
+      }
+      return { ...item, [field]: value };
     }));
   };
 
@@ -230,23 +242,33 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
     }
   };
 
-  // Calculated totals of Cart - Subtotal otomatis: Berat (Kg) * Harga / kg manual
+  // Calculated totals of Cart:
+  // - Berat Stok Keluar memotong stok gudang & menghitung Modal Pokok (HPP)
+  // - Hasil Timbang menghitung tagihan ke pembeli (Omset) & dicetak pada struk pembeli
+  // - Selisih Timbang = Hasil Timbang - Berat Stok Keluar
   const calculatedItems: SaleItem[] = cartItems.map(item => {
-    const numWeight = parseWeightInput(item.weightKg);
-    const numSellPrice = Math.max(0, Math.round(parseFloat(item.sellPricePerKg) || 0));
-    
     const stockInfo = stockList.find(s => isSameVariety(s.bananaType, item.bananaType));
+    const stockOutWeightKg =
+      stockInfo && stockInfo.stockKg > 0
+        ? Math.round(stockInfo.stockKg * 100) / 100
+        : parseWeightInput(item.stockOutWeightKg);
+    const numWeight = parseWeightInput(item.weightKg);
+    const weightVarianceKg = Math.round((numWeight - stockOutWeightKg) * 100) / 100;
+    const numSellPrice = Math.max(0, Math.round(parseFloat(item.sellPricePerKg) || 0));
+
     const costPrice = stockInfo && stockInfo.avgBuyPricePerKg > 0 
       ? Math.round(stockInfo.avgBuyPricePerKg) 
       : (TYPICAL_SELL_PRICES[item.bananaType] ? Math.round(TYPICAL_SELL_PRICES[item.bananaType] * 0.75) : 6500);
 
     const subtotalRevenue = Math.round(numWeight * numSellPrice);
-    const subtotalCost = Math.round(numWeight * costPrice);
+    const subtotalCost = Math.round(stockOutWeightKg * costPrice);
     const subtotalProfit = subtotalRevenue - subtotalCost;
 
     return {
       bananaType: item.bananaType,
       weightKg: numWeight,
+      stockOutWeightKg,
+      weightVarianceKg,
       sellPricePerKg: numSellPrice,
       costPricePerKg: costPrice,
       subtotalRevenue,
@@ -256,6 +278,9 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
   });
 
   const totalCartWeight = Math.round(calculatedItems.reduce((acc, it) => acc + it.weightKg, 0) * 100) / 100;
+  const totalCartStockOutWeight =
+    Math.round(calculatedItems.reduce((acc, it) => acc + (it.stockOutWeightKg ?? it.weightKg), 0) * 100) / 100;
+  const totalCartVariance = Math.round((totalCartWeight - totalCartStockOutWeight) * 100) / 100;
   const totalCartRevenue = calculatedItems.reduce((acc, it) => acc + it.subtotalRevenue, 0);
   const totalCartCost = calculatedItems.reduce((acc, it) => acc + it.subtotalCost, 0);
   const totalCartNetProfit = totalCartRevenue - totalCartCost;
@@ -271,7 +296,8 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
     for (const it of calculatedItems) {
       const stockInfo = stockList.find(s => isSameVariety(s.bananaType, it.bananaType));
       const availableKg = stockInfo ? stockInfo.stockKg : 0;
-      if (it.weightKg < 0.01 || it.weightKg > availableKg || it.sellPricePerKg <= 0) {
+      const stockOutKg = it.stockOutWeightKg ?? it.weightKg;
+      if (stockOutKg < 0.01 || stockOutKg > availableKg || it.weightKg < 0.01 || it.sellPricePerKg <= 0) {
         hasError = true;
       }
     }
@@ -313,13 +339,14 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
     for (const it of calculatedItems) {
       const stockInfo = stockList.find(s => isSameVariety(s.bananaType, it.bananaType));
       const availableKg = stockInfo ? stockInfo.stockKg : 0;
-      if (it.weightKg < 0.01 || it.sellPricePerKg <= 0) {
-        setModalErrorMsg(`Periksa kembali berat (min 0,01 kg) dan harga jual untuk ${it.bananaType}.`);
+      const stockOutKg = it.stockOutWeightKg ?? it.weightKg;
+      if (stockOutKg < 0.01 || it.weightKg < 0.01 || it.sellPricePerKg <= 0) {
+        setModalErrorMsg(`Periksa kembali berat stok keluar, hasil timbang (min 0,01 kg), dan harga jual untuk ${it.bananaType}.`);
         return;
       }
-      if (it.weightKg > availableKg) {
+      if (stockOutKg > availableKg) {
         setModalErrorMsg(
-          `Stok ${it.bananaType} berubah dan kini tersisa ${formatNumber(availableKg)} kg (diminta ${formatNumber(it.weightKg)} kg). Tutup modal dan sesuaikan keranjang.`
+          `Stok ${it.bananaType} berubah dan kini tersisa ${formatNumber(availableKg)} kg (stok keluar diminta ${formatNumber(stockOutKg)} kg). Tutup modal dan sesuaikan keranjang.`
         );
         return;
       }
@@ -346,6 +373,8 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
         bananaType: summaryTypeLabel,
         items: calculatedItems,
         weightKg: totalCartWeight,
+        stockOutWeightKg: totalCartStockOutWeight,
+        weightVarianceKg: totalCartVariance,
         sellPricePerKg: avgSellPrice,
         totalRevenue: totalCartRevenue,
         estimatedCost: totalCartCost,
@@ -390,154 +419,105 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
   const totalAllRevenue = sales.reduce((acc, s) => acc + s.totalRevenue, 0);
   const totalAllProfit = sales.reduce((acc, s) => acc + s.netProfit, 0);
 
-  const totalRejectedKg = rejects.reduce((acc, r) => acc + r.weightKg, 0);
-  const totalRejectLoss = rejects.reduce((acc, r) => acc + r.totalLossAmount, 0);
+  // Combined Koreksi Stok (Shrinkage + Reject records unified)
+  const combinedCorrections = [
+    ...shrinkages.map((record) => ({ source: 'shrinkage' as const, record })),
+    ...rejects.map((record) => ({ source: 'reject' as const, record }))
+  ].sort((a, b) => new Date(b.record.date).getTime() - new Date(a.record.date).getTime());
 
-  // Open Reject Stock Modal for a specific variety
-  const handleOpenRejectModal = (stockItem: BananaStockSummary) => {
+  const totalCorrectionKg =
+    Math.round(combinedCorrections.reduce((acc, item) => acc + (item.record.weightKg || 0), 0) * 100) / 100;
+  const totalCorrectionLoss = combinedCorrections.reduce(
+    (acc, item) => acc + (item.record.totalLossAmount || 0),
+    0
+  );
+
+  // Open Koreksi Stok Modal for a specific variety
+  const handleOpenCorrectionModal = (stockItem: BananaStockSummary) => {
     if (stockItem.stockKg <= 0) return;
-    setRejectTargetStock(stockItem);
-    setRejectWeightKg('');
-    setRejectReason(REJECT_REASONS[0]);
-    setRejectNotes('');
-    setRejectModalError('');
+    setCorrectionTargetStock(stockItem);
+    setCorrectionWeightKg('');
+    setCorrectionReason(STOCK_CORRECTION_REASONS[0]);
+    setCorrectionNotes('');
+    setCorrectionModalError('');
   };
 
-  const handleRejectWeightChange = (val: string) => {
-    setRejectWeightKg(val);
-    setRejectModalError('');
+  const handleSetCorrectionAllStock = () => {
+    if (!correctionTargetStock) return;
+    setCorrectionWeightKg(String(correctionTargetStock.stockKg));
+    setCorrectionModalError('');
   };
 
-  const handleSetRejectAllStock = () => {
-    if (!rejectTargetStock) return;
-    setRejectWeightKg(String(rejectTargetStock.stockKg));
-    setRejectModalError('');
-  };
-
-  const handleSubmitReject = (e: React.FormEvent) => {
+  const handleSubmitCorrection = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!rejectTargetStock || !onAddReject) return;
+    if (!correctionTargetStock || (!onAddShrinkage && !onAddReject)) return;
 
-    const numWeight = parseWeightInput(rejectWeightKg);
+    const numWeight = parseWeightInput(correctionWeightKg);
 
     if (numWeight < 0.01) {
-      setRejectModalError('Masukkan berat pisang reject (kg) minimal 0,01 kg.');
+      setCorrectionModalError('Masukkan berat koreksi stok (kg) minimal 0,01 kg.');
       return;
     }
 
-    if (numWeight > rejectTargetStock.stockKg) {
-      setRejectModalError(`Berat reject (${formatNumber(numWeight)} kg) melebihi sisa stok siap kirim (${formatNumber(rejectTargetStock.stockKg)} kg).`);
+    if (numWeight > correctionTargetStock.stockKg) {
+      setCorrectionModalError(
+        `Berat koreksi (${formatNumber(numWeight)} kg) melebihi sisa stok tersedia (${formatNumber(correctionTargetStock.stockKg)} kg).`
+      );
       return;
     }
 
-    const costBasisPerKg = rejectTargetStock.avgBuyPricePerKg > 0
-      ? Math.round(rejectTargetStock.avgBuyPricePerKg)
-      : (TYPICAL_BUY_PRICES[rejectTargetStock.bananaType] || 0);
+    const costBasisPerKg =
+      correctionTargetStock.avgBuyPricePerKg > 0
+        ? Math.round(correctionTargetStock.avgBuyPricePerKg)
+        : (TYPICAL_BUY_PRICES[correctionTargetStock.bananaType] || 0);
     const lossAmount = Math.round(numWeight * costBasisPerKg);
 
     const restore = captureScrollState();
-    onAddReject({
-      bananaType: rejectTargetStock.bananaType,
+    const correctionPayload = {
+      bananaType: correctionTargetStock.bananaType,
       weightKg: numWeight,
       bunches: 0,
       costPricePerKg: costBasisPerKg,
       totalLossAmount: lossAmount,
-      reason: rejectReason,
-      notes: rejectNotes.trim() || undefined,
+      reason: correctionReason,
+      notes: correctionNotes.trim() || undefined,
       date: new Date().toISOString()
-    });
+    };
 
-    // Synchronize active cart if this variety is already in cart
-    const remainingKgAfterReject = Math.round(Math.max(0, rejectTargetStock.stockKg - numWeight) * 100) / 100;
-    setCartItems(prev => prev.flatMap(item => {
-      if (!isSameVariety(item.bananaType, rejectTargetStock.bananaType)) {
-        return [item];
-      }
-      if (remainingKgAfterReject <= 0) {
-        return [];
-      }
-      const currentCartKg = parseWeightInput(item.weightKg);
-      if (currentCartKg > remainingKgAfterReject) {
-        return [{
-          ...item,
-          weightKg: String(remainingKgAfterReject)
-        }];
-      }
-      return [item];
-    }));
-
-    blurActiveTrigger();
-    setRejectTargetStock(null);
-    restore();
-  };
-
-  // Shrinkage totals & handlers
-  const totalShrinkageKg = shrinkages.reduce((acc, sh) => acc + sh.weightKg, 0);
-  const totalShrinkageLoss = shrinkages.reduce((acc, sh) => acc + sh.totalLossAmount, 0);
-
-  const handleOpenShrinkageModal = (stockItem: BananaStockSummary) => {
-    if (stockItem.stockKg <= 0) return;
-    setShrinkageTargetStock(stockItem);
-    setShrinkageWeightKg('');
-    setShrinkageReason(SHRINKAGE_REASONS[0]);
-    setShrinkageNotes('');
-    setShrinkageModalError('');
-  };
-
-  const handleSubmitShrinkage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!shrinkageTargetStock || !onAddShrinkage) return;
-
-    const numWeight = parseWeightInput(shrinkageWeightKg);
-
-    if (numWeight < 0.01) {
-      setShrinkageModalError('Masukkan berat susut / selisih timbang (kg) minimal 0,01 kg.');
-      return;
+    if (onAddShrinkage) {
+      onAddShrinkage(correctionPayload);
+    } else if (onAddReject) {
+      onAddReject(correctionPayload);
     }
 
-    if (numWeight > shrinkageTargetStock.stockKg) {
-      setShrinkageModalError(`Berat susut (${formatNumber(numWeight)} kg) melebihi sisa stok tersedia (${formatNumber(shrinkageTargetStock.stockKg)} kg).`);
-      return;
-    }
-
-    const costBasisPerKg = shrinkageTargetStock.avgBuyPricePerKg > 0
-      ? Math.round(shrinkageTargetStock.avgBuyPricePerKg)
-      : (TYPICAL_BUY_PRICES[shrinkageTargetStock.bananaType] || 0);
-    const lossAmount = Math.round(numWeight * costBasisPerKg);
-
-    const restore = captureScrollState();
-    onAddShrinkage({
-      bananaType: shrinkageTargetStock.bananaType,
-      weightKg: numWeight,
-      bunches: 0,
-      costPricePerKg: costBasisPerKg,
-      totalLossAmount: lossAmount,
-      reason: shrinkageReason,
-      notes: shrinkageNotes.trim() || undefined,
-      date: new Date().toISOString()
-    });
-
     // Synchronize active cart if this variety is already in cart
-    const remainingKgAfterShrinkage = Math.round(Math.max(0, shrinkageTargetStock.stockKg - numWeight) * 100) / 100;
-    setCartItems(prev => prev.flatMap(item => {
-      if (!isSameVariety(item.bananaType, shrinkageTargetStock.bananaType)) {
+    const remainingKgAfterCorrection =
+      Math.round(Math.max(0, correctionTargetStock.stockKg - numWeight) * 100) / 100;
+    setCartItems((prev) =>
+      prev.flatMap((item) => {
+        if (!isSameVariety(item.bananaType, correctionTargetStock.bananaType)) {
+          return [item];
+        }
+        if (remainingKgAfterCorrection <= 0) {
+          return [];
+        }
+        const currentStockOutKg = parseWeightInput(item.stockOutWeightKg);
+        if (currentStockOutKg > remainingKgAfterCorrection) {
+          const nextStockOutStr = String(remainingKgAfterCorrection);
+          return [
+            {
+              ...item,
+              stockOutWeightKg: nextStockOutStr,
+              weightKg: item.isWeighedEdited ? item.weightKg : nextStockOutStr
+            }
+          ];
+        }
         return [item];
-      }
-      if (remainingKgAfterShrinkage <= 0) {
-        return [];
-      }
-      const currentCartKg = parseWeightInput(item.weightKg);
-      if (currentCartKg > remainingKgAfterShrinkage) {
-        return [{
-          ...item,
-          weightKg: String(remainingKgAfterShrinkage)
-        }];
-      }
-      return [item];
-    }));
+      })
+    );
 
     blurActiveTrigger();
-    setShrinkageTargetStock(null);
+    setCorrectionTargetStock(null);
     restore();
   };
 
@@ -624,22 +604,12 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                     <button
                       type="button"
                       disabled={isOutOfStock}
-                      onClick={() => handleOpenShrinkageModal(item)}
-                      title={isOutOfStock ? 'Stok kosong (0 kg)' : `Catat susut berat / selisih timbang untuk ${item.bananaType}`}
-                      className="px-2 py-1.5 text-xs font-semibold rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap disabled:opacity-35 disabled:cursor-not-allowed"
+                      onClick={() => handleOpenCorrectionModal(item)}
+                      title={isOutOfStock ? 'Stok kosong (0 kg)' : `Koreksi stok (buah busuk/rusak atau susut) untuk ${item.bananaType}`}
+                      className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap disabled:opacity-35 disabled:cursor-not-allowed"
                     >
                       <Scale className="w-3.5 h-3.5 shrink-0" />
-                      <span>Susut</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isOutOfStock}
-                      onClick={() => handleOpenRejectModal(item)}
-                      title={isOutOfStock ? 'Stok kosong (0 kg)' : `Catat stok reject / rusak untuk ${item.bananaType}`}
-                      className="px-2 py-1.5 text-xs font-semibold rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap disabled:opacity-35 disabled:cursor-not-allowed"
-                    >
-                      <PackageX className="w-3.5 h-3.5 shrink-0" />
-                      <span>Reject</span>
+                      <span>Koreksi Stok</span>
                     </button>
                     <button
                       type="button"
@@ -653,7 +623,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                       }}
                       title={isOutOfStock ? 'Stok belum tersedia (0 kg)' : inCart ? 'Sudah di Keranjang (klik untuk hapus)' : 'Tambah ke Keranjang'}
                       aria-label={inCart ? 'Sudah di Keranjang' : 'Tambah ke Keranjang'}
-                      className={`px-2 py-1.5 text-xs font-semibold rounded-lg transition flex items-center justify-center gap-0.5 shrink-0 cursor-pointer whitespace-nowrap ${
+                      className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center justify-center gap-0.5 shrink-0 cursor-pointer whitespace-nowrap ${
                         inCart 
                           ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-red-50 hover:text-red-700 hover:border-red-300'
                           : 'bg-emerald-800 hover:bg-emerald-900 text-white shadow-xs disabled:opacity-35 disabled:cursor-not-allowed'
@@ -732,7 +702,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                         </span>
                       </td>
 
-                      {/* 4. Tombol Aksi: Ikon +Keranjang, Susut & Reject sejajar 1 baris */}
+                      {/* 4. Tombol Aksi: Ikon +Keranjang & Koreksi Stok sejajar 1 baris */}
                       <td className="py-3 px-2.5 text-center">
                         <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                           <button
@@ -764,23 +734,12 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                           <button
                             type="button"
                             disabled={isOutOfStock}
-                            onClick={() => handleOpenShrinkageModal(item)}
-                            title={isOutOfStock ? 'Stok kosong (0 kg)' : `Catat susut berat / selisih timbang untuk ${item.bananaType}`}
-                            className="px-2 py-1.5 text-xs font-semibold rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 text-amber-800 transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-35 disabled:cursor-not-allowed"
+                            onClick={() => handleOpenCorrectionModal(item)}
+                            title={isOutOfStock ? 'Stok kosong (0 kg)' : `Catat koreksi stok (busuk/susut) untuk ${item.bananaType}`}
+                            className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 hover:border-amber-300 text-amber-800 transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-35 disabled:cursor-not-allowed"
                           >
                             <Scale className="w-3.5 h-3.5 shrink-0" />
-                            <span>Susut</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isOutOfStock}
-                            onClick={() => handleOpenRejectModal(item)}
-                            title={isOutOfStock ? 'Stok kosong (0 kg)' : `Catat stok reject / rusak untuk ${item.bananaType}`}
-                            className="px-2 py-1.5 text-xs font-semibold rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 text-rose-700 transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-35 disabled:cursor-not-allowed"
-                          >
-                            <PackageX className="w-3.5 h-3.5 shrink-0" />
-                            <span>Reject</span>
+                            <span>Koreksi Stok</span>
                           </button>
                         </div>
                       </td>
@@ -792,7 +751,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
           </div>
 
           <div className="pt-2 border-t border-stone-100 text-[11px] text-stone-500 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-            <span>Klik ikon <strong className="text-emerald-800 font-semibold">Keranjang (+)</strong> untuk kirim, <strong className="text-amber-800 font-semibold">Susut</strong> untuk selisih timbang, atau <strong className="text-rose-700 font-semibold">Reject</strong> untuk buah rusak</span>
+            <span>Klik ikon <strong className="text-emerald-800 font-semibold">Keranjang (+)</strong> untuk jual, atau <strong className="text-amber-800 font-semibold">Koreksi Stok</strong> untuk buah busuk/susut di luar penjualan</span>
             <span className="font-mono text-emerald-900 font-bold shrink-0">
               {formatNumber(stockList.reduce((acc, s) => acc + s.stockKg, 0))} kg total stok
             </span>
@@ -857,26 +816,34 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
               cartItems.map((cartItem, idx) => {
                 const currentStock = stockList.find(s => isSameVariety(s.bananaType, cartItem.bananaType));
                 const stockKg = currentStock ? currentStock.stockKg : 0;
-                const numKg = parseWeightInput(cartItem.weightKg);
+                const numStockOutKg =
+                  stockKg > 0
+                    ? Math.round(stockKg * 100) / 100
+                    : parseWeightInput(cartItem.stockOutWeightKg);
+                const hasWeighedValue = cartItem.weightKg.trim() !== '';
+                const numWeighedKg = parseWeightInput(cartItem.weightKg);
+                const varianceKg = Math.round((numWeighedKg - numStockOutKg) * 100) / 100;
                 const numPrice = Math.max(0, Math.round(parseFloat(cartItem.sellPricePerKg) || 0));
-                const subtotal = Math.round(numKg * numPrice);
-                const isExceeding = numKg > stockKg;
-                const isWeightEmptyOrZero = showCartValidation && numKg < 0.01;
-                const isWeightInvalid = isExceeding || isWeightEmptyOrZero;
+                const subtotal = Math.round(numWeighedKg * numPrice);
+
+                const isStockOutExceeding = numStockOutKg > stockKg;
+                const isStockOutEmptyOrZero = showCartValidation && numStockOutKg < 0.01;
+                const isStockOutInvalid = isStockOutExceeding || isStockOutEmptyOrZero;
+                const isWeighedInvalid = showCartValidation && numWeighedKg < 0.01;
                 const isPriceInvalid = showCartValidation && numPrice <= 0;
 
                 return (
                   <div 
                     key={cartItem.id}
                     className={`p-3 rounded-xl border transition ${
-                      isExceeding ? 'bg-red-50/60 border-red-300' : 'bg-stone-50/70 border-stone-200'
+                      isStockOutExceeding ? 'bg-red-50/60 border-red-300' : 'bg-stone-50/70 border-stone-200'
                     }`}
                   >
                     {/* Item Title & Subtotal Bar */}
                     <div className="flex items-center justify-between pb-2 mb-2 border-b border-stone-200/60">
                       <div>
                         <span className="text-[10px] text-stone-400 font-semibold uppercase block">
-                          Item #{idx + 1}
+                          Item #{idx + 1} · Stok: {formatNumber(stockKg)} kg
                         </span>
                         <strong className="text-xs text-stone-900 block leading-tight">
                           {cartItem.bananaType}
@@ -902,38 +869,74 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                       </div>
                     </div>
 
-                    {/* Compact Inputs: Berat (Kg) & Harga Jual Manual */}
+                    {/* 3 Weight/Variance Fields + Harga Jual */}
                     <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2.5 text-xs items-start">
-                      {/* 1. Input Berat (Kg) */}
+                      {/* 1. Berat Stok Keluar (Kg) - Otomatis & Tidak Bisa Diubah */}
                       <div>
-                        <label className="block text-[10px] font-semibold text-stone-600 mb-0.5">Berat (Kg)</label>
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          required
-                          value={cartItem.weightKg}
-                          onChange={(e) => handleUpdateCartField(cartItem.id, 'weightKg', e.target.value)}
-                          placeholder="Kg"
-                          aria-invalid={isWeightInvalid}
-                          className={`w-full px-2.5 py-1.5 text-xs bg-white border rounded-lg font-mono tabular-nums focus:outline-none focus:ring-1 transition-colors ${
-                            isWeightInvalid
-                              ? 'border-red-500 ring-1 ring-red-500/20 focus:ring-red-500'
-                              : 'border-stone-200 focus:ring-emerald-700'
+                        <label className="block text-[10px] font-semibold text-stone-600 mb-0.5">
+                          Berat Stok Keluar (Kg)
+                        </label>
+                        <div
+                          aria-readonly="true"
+                          className={`w-full px-2.5 py-1.5 text-xs border rounded-lg font-mono font-bold tabular-nums select-none cursor-not-allowed flex items-center justify-between ${
+                            isStockOutInvalid
+                              ? 'bg-red-50 border-red-400 text-red-700'
+                              : 'bg-stone-100 border-stone-200 text-stone-700'
                           }`}
-                        />
-                        {isWeightInvalid && (
+                        >
+                          <span>{formatNumber(numStockOutKg)} kg</span>
+                          <span className="text-[9.5px] font-sans font-semibold text-stone-400">
+                            Otomatis
+                          </span>
+                        </div>
+                        {isStockOutInvalid ? (
                           <span className="text-[10px] text-red-600 font-semibold block mt-0.5 leading-tight">
-                            {isWeightEmptyOrZero
-                              ? 'Wajib diisi (> 0 kg)'
-                              : `Melebihi stok tersedia (${formatNumber(stockKg)} kg)`}
+                            {isStockOutEmptyOrZero
+                              ? 'Stok kosong (0 kg)'
+                              : `Melebihi stok (${formatNumber(stockKg)} kg)`}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-stone-400 block mt-0.5 leading-tight">
+                            Potong stok &amp; modal gudang
                           </span>
                         )}
                       </div>
 
-                      {/* 2. Input Harga Jual Manual dengan format Rupiah default "Rp. 0" */}
+                      {/* 2. Hasil Timbang (Kg) - Wajib diisi manual */}
                       <div>
-                        <label className="block text-[10px] font-semibold text-stone-600 mb-0.5">Harga Jual / kg</label>
+                        <label className="block text-[10px] font-semibold text-stone-600 mb-0.5">
+                          Hasil Timbang (Kg) <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          required
+                          value={cartItem.weightKg}
+                          onChange={(e) => handleUpdateCartField(cartItem.id, 'weightKg', e.target.value)}
+                          placeholder="0 kg"
+                          aria-invalid={isWeighedInvalid}
+                          className={`w-full px-2.5 py-1.5 text-xs bg-white border rounded-lg font-mono tabular-nums placeholder:text-stone-400 focus:outline-none focus:ring-1 transition-colors ${
+                            isWeighedInvalid
+                              ? 'border-red-500 ring-1 ring-red-500/20 focus:ring-red-500'
+                              : 'border-stone-200 focus:ring-emerald-700'
+                          }`}
+                        />
+                        {isWeighedInvalid ? (
+                          <span className="text-[10px] text-red-600 font-semibold block mt-0.5 leading-tight">
+                            Wajib diisi (&gt; 0 kg)
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-stone-400 block mt-0.5 leading-tight">
+                            Dicetak di struk &amp; tagihan
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 3. Input Harga Jual Manual */}
+                      <div>
+                        <label className="block text-[10px] font-semibold text-stone-600 mb-0.5">
+                          Harga Jual / kg <span className="text-red-500">*</span>
+                        </label>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -942,7 +945,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                           onChange={(e) => handlePriceChange(cartItem.id, e.target.value)}
                           placeholder="Rp. 0"
                           aria-invalid={isPriceInvalid}
-                          className={`w-full px-2.5 py-1.5 text-xs bg-white border rounded-lg font-mono tabular-nums focus:outline-none focus:ring-1 transition-colors ${
+                          className={`w-full px-2.5 py-1.5 text-xs bg-white border rounded-lg font-mono tabular-nums placeholder:text-stone-400 focus:outline-none focus:ring-1 transition-colors ${
                             isPriceInvalid
                               ? 'border-red-500 ring-1 ring-red-500/20 focus:ring-red-500'
                               : 'border-stone-200 focus:ring-emerald-700'
@@ -954,6 +957,36 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                           {isPriceInvalid ? 'Wajib diisi (> Rp. 0)' : 'Input manual (Rp.)'}
                         </span>
                       </div>
+
+                      {/* 4. Selisih Timbang (Read-only auto-computed, placeholder 0 kg saat Hasil Timbang kosong) */}
+                      <div>
+                        <label className="block text-[10px] font-semibold text-stone-600 mb-0.5">
+                          Selisih Timbang
+                        </label>
+                        {!hasWeighedValue ? (
+                          <div className="w-full px-2.5 py-1.5 text-xs border rounded-lg font-mono tabular-nums bg-stone-100 border-stone-200 text-stone-400 flex items-center justify-between">
+                            <span>0 kg</span>
+                          </div>
+                        ) : (
+                          <div
+                            className={`w-full px-2.5 py-1.5 text-xs border rounded-lg font-mono font-bold tabular-nums flex items-center justify-between ${
+                              varianceKg > 0
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                : varianceKg < 0
+                                ? 'bg-amber-50 border-amber-200 text-amber-800'
+                                : 'bg-stone-100 border-stone-200 text-stone-600'
+                            }`}
+                          >
+                            <span>{formatSignedKg(varianceKg)}</span>
+                            <span className="text-[9.5px] font-sans font-semibold opacity-80">
+                              {varianceKg === 0 ? 'Pas' : varianceKg > 0 ? 'Lebih' : 'Kurang'}
+                            </span>
+                          </div>
+                        )}
+                        <span className="text-[10px] text-stone-400 block mt-0.5 leading-tight">
+                          Hasil Timbang - Stok Keluar
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -963,13 +996,27 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
 
           {/* Sticky Bottom Summary & Primary Checkout Button */}
           <div className="p-4 border-t border-stone-200 bg-stone-50/90 shrink-0 space-y-3">
-            <div className="space-y-2 text-xs">
+            <div className="space-y-1.5 text-xs">
               <div className="flex items-center justify-between text-stone-600">
-                <span className="font-medium">Total Berat Muatan:</span>
+                <span className="font-medium">Total Hasil Timbang (Pembeli):</span>
                 <span className="font-mono font-bold text-stone-900 tabular-nums">
                   {formatNumber(totalCartWeight)} kg
                 </span>
               </div>
+              {totalCartWeight > 0 && Math.abs(totalCartVariance) > 0.001 && (
+                <div className="flex items-center justify-between text-[11px] text-stone-500">
+                  <span>
+                    Stok Keluar Gudang: <strong className="font-mono text-stone-700">{formatNumber(totalCartStockOutWeight)} kg</strong>
+                  </span>
+                  <span
+                    className={`font-mono font-bold tabular-nums ${
+                      totalCartVariance > 0 ? 'text-emerald-700' : 'text-amber-800'
+                    }`}
+                  >
+                    Selisih Timbang: {formatSignedKg(totalCartVariance)}
+                  </span>
+                </div>
+              )}
               <div className="pt-2 border-t border-stone-200 flex flex-wrap items-center justify-between gap-1">
                 <span className="font-bold text-stone-900 text-xs">Total Tagihan Penjualan:</span>
                 <span className="font-mono font-extrabold text-emerald-950 text-base sm:text-lg tabular-nums">
@@ -1200,19 +1247,27 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                         className="text-[10px] font-medium bg-white text-emerald-900 px-2 py-0.5 rounded border border-emerald-200 font-mono"
                       >
                         {it.bananaType}: {formatNumber(it.weightKg)} kg (@{formatRupiah(it.sellPricePerKg)})
+                        {it.weightVarianceKg !== undefined && Math.abs(it.weightVarianceKg) > 0.001
+                          ? ` · Selisih ${formatSignedKg(it.weightVarianceKg)}`
+                          : ''}
                       </span>
                     ))}
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-1">
                     <div>
-                      <span className="text-[10px] text-stone-500 block">Total Muatan:</span>
+                      <span className="text-[10px] text-stone-500 block">Hasil Timbang:</span>
                       <span className="font-mono font-bold text-stone-900 tabular-nums">
                         {formatNumber(totalCartWeight)} kg
                       </span>
+                      {Math.abs(totalCartVariance) > 0.001 && (
+                        <span className="text-[10px] text-stone-500 block font-mono">
+                          Stok keluar {formatNumber(totalCartStockOutWeight)} kg ({formatSignedKg(totalCartVariance)})
+                        </span>
+                      )}
                     </div>
                     <div>
-                      <span className="text-[10px] text-stone-500 block">Modal Pokok:</span>
+                      <span className="text-[10px] text-stone-500 block">Modal Stok Keluar:</span>
                       <span className="font-mono text-stone-600 tabular-nums">
                         {formatRupiah(totalCartCost)}
                       </span>
@@ -1366,8 +1421,13 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
 
                         <div className="grid grid-cols-3 gap-2 pt-2 border-t border-stone-200/70 text-xs">
                           <div>
-                            <span className="text-[10px] text-stone-400 block">Volume</span>
+                            <span className="text-[10px] text-stone-400 block">Hasil Timbang</span>
                             <strong className="font-mono text-stone-900 tabular-nums">{formatNumber(sale.weightKg)} kg</strong>
+                            {sale.weightVarianceKg !== undefined && Math.abs(sale.weightVarianceKg) > 0.001 && (
+                              <span className={`text-[9.5px] font-mono block ${sale.weightVarianceKg > 0 ? 'text-emerald-700' : 'text-amber-800'}`}>
+                                Selisih: {formatSignedKg(sale.weightVarianceKg)}
+                              </span>
+                            )}
                           </div>
                           <div>
                             <span className="text-[10px] text-stone-400 block">Tagihan</span>
@@ -1492,6 +1552,13 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                               <span className="font-mono font-bold text-stone-900 block tabular-nums">
                                 {formatNumber(sale.weightKg)} kg
                               </span>
+                              {sale.weightVarianceKg !== undefined && Math.abs(sale.weightVarianceKg) > 0.001 && (
+                                <span className={`text-[10px] font-mono block tabular-nums ${
+                                  sale.weightVarianceKg > 0 ? 'text-emerald-700' : 'text-amber-800'
+                                }`}>
+                                  Keluar {formatNumber(sale.stockOutWeightKg ?? sale.weightKg)} kg · Selisih {formatSignedKg(sale.weightVarianceKg)}
+                                </span>
+                              )}
                             </td>
 
                             {/* Total Tagihan Penjualan */}
@@ -1731,7 +1798,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                 <AlertCircle className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
                 <div className="leading-snug space-y-1">
                   <p>
-                    <strong>Pemulihan Stok Otomatis:</strong> Seluruh muatan pisang sebesar <strong>{formatNumber(saleToDelete.weightKg)} kg</strong> akan otomatis dikembalikan ke daftar stok siap kirim lapak.
+                    <strong>Pemulihan Stok Otomatis:</strong> Seluruh stok keluar sebesar <strong>{formatNumber(saleToDelete.stockOutWeightKg ?? saleToDelete.weightKg)} kg</strong> akan otomatis dikembalikan ke daftar stok siap kirim lapak.
                   </p>
                   <p className="text-stone-500">
                     Nilai omset, kas, piutang, dan laba operasional juga akan disesuaikan kembali secara otomatis.
@@ -1775,55 +1842,52 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
       )}
 
       {/* =========================================================================
-          LAPORAN RIWAYAT SUSUT / SELISIH TIMBANG (TERPISAH DARI STOK AKTIF)
+          RIWAYAT KOREKSI STOK (GABUNGAN BUAH RUSAK / PENYUSUTAN DI LUAR PENJUALAN)
          ========================================================================= */}
-      {shrinkages.length > 0 && (() => {
-        const sortedShrinkages = [...shrinkages].sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
-
-        return (
-          <div className="bg-white rounded-xl border border-stone-200 p-4 sm:p-6 shadow-xs space-y-4 min-w-0">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-stone-100">
-              <div>
-                <div className="flex items-center gap-2 text-amber-800 text-xs font-bold tracking-wide mb-0.5">
-                  <Scale className="w-3.5 h-3.5 shrink-0" />
-                  <span>Laporan Penyusutan &amp; Selisih Timbang</span>
-                </div>
-                <h3 className="text-base font-bold text-stone-900">
-                  Riwayat Susut / Selisih Timbang
-                </h3>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  Log historis penyusutan yang memotong stok aktif saat pencatatan berlangsung, tanpa mengurangi pasokan baru dari petani maupun mengubah harga rata-rata (moving average).
-                </p>
+      {combinedCorrections.length > 0 && (
+        <div className="bg-white rounded-xl border border-stone-200 p-4 sm:p-6 shadow-xs space-y-4 min-w-0">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-stone-100">
+            <div>
+              <div className="flex items-center gap-2 text-amber-800 text-xs font-bold tracking-wide mb-0.5">
+                <Scale className="w-3.5 h-3.5 shrink-0" />
+                <span>Penyesuaian Stok &amp; Buah Rusak di Luar Penjualan</span>
               </div>
-
-              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                <div className="text-xs text-stone-600 font-mono tabular-nums bg-amber-50/70 border border-amber-200 px-3 py-1.5 rounded-lg">
-                  <span className="font-semibold text-amber-900">{sortedShrinkages.length} catatan</span>
-                  <span aria-hidden="true" className="mx-1.5 text-amber-400">·</span>
-                  <span className="font-bold text-amber-950">-{formatNumber(totalShrinkageKg)} kg</span>
-                  <span aria-hidden="true" className="mx-1.5 text-amber-400">·</span>
-                  <span className="font-bold text-amber-900">-{formatRupiah(totalShrinkageLoss)}</span>
-                </div>
-                {onGoToFinancialReport && (
-                  <button
-                    type="button"
-                    onClick={onGoToFinancialReport}
-                    className="px-3 py-1.5 text-xs font-semibold bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg transition flex items-center gap-1 cursor-pointer whitespace-nowrap"
-                  >
-                    <span>Rekap Keuangan</span>
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+              <h3 className="text-base font-bold text-stone-900">
+                Riwayat Koreksi Stok
+              </h3>
+              <p className="text-xs text-stone-500 mt-0.5">
+                Catatan pengurangan stok karena buah busuk/dibuang, sortir mutu, atau penyesuaian opname gudang.
+              </p>
             </div>
 
-            {/* Mobile & Tablet Cards (< lg) */}
-            <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-3">
-              {sortedShrinkages.map((record) => (
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              <div className="text-xs text-stone-600 font-mono tabular-nums bg-amber-50/70 border border-amber-200 px-3 py-1.5 rounded-lg">
+                <span className="font-semibold text-amber-900">{combinedCorrections.length} catatan</span>
+                <span aria-hidden="true" className="mx-1.5 text-amber-400">·</span>
+                <span className="font-bold text-amber-950">-{formatNumber(totalCorrectionKg)} kg</span>
+                <span aria-hidden="true" className="mx-1.5 text-amber-400">·</span>
+                <span className="font-bold text-amber-900">-{formatRupiah(totalCorrectionLoss)}</span>
+              </div>
+              {onGoToFinancialReport && (
+                <button
+                  type="button"
+                  onClick={onGoToFinancialReport}
+                  className="px-3 py-1.5 text-xs font-semibold bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg transition flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                >
+                  <span>Rekap Keuangan</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Mobile & Tablet Cards (< lg) */}
+          <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-3">
+            {combinedCorrections.map(({ source, record }) => {
+              const canRestore = source === 'shrinkage' ? Boolean(onDeleteShrinkage) : Boolean(onDeleteReject);
+              return (
                 <div
-                  key={record.id}
+                  key={`${source}-${record.id}`}
                   className="p-3.5 rounded-xl border border-amber-200/90 bg-amber-50/35 space-y-2.5"
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -1852,7 +1916,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
 
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t border-amber-200/60 text-xs">
                     <div>
-                      <span className="text-[10px] text-stone-500 block">Berat Susut</span>
+                      <span className="text-[10px] text-stone-500 block">Berat Koreksi</span>
                       <strong className="font-mono text-stone-900 tabular-nums">
                         {formatNumber(record.weightKg)} kg
                       </strong>
@@ -1865,7 +1929,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                     </div>
                     <div className="text-right">
                       <span className="text-[10px] block font-semibold text-amber-800">
-                        Beban Susut
+                        Beban Koreksi
                       </span>
                       <strong className="font-mono tabular-nums text-amber-900">
                         -{formatRupiah(record.totalLossAmount)}
@@ -1873,11 +1937,11 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                     </div>
                   </div>
 
-                  {onDeleteShrinkage && (
+                  {canRestore && (
                     <div className="pt-2 border-t border-amber-200/60 flex justify-end">
                       <button
                         type="button"
-                        onClick={() => setShrinkageToDelete(record)}
+                        onClick={() => setCorrectionToDelete({ source, record })}
                         className="px-2.5 py-1 text-[11px] font-semibold text-stone-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-stone-200 hover:border-emerald-300 rounded-lg transition flex items-center gap-1 cursor-pointer"
                       >
                         <RotateCcw className="w-3 h-3" />
@@ -1886,25 +1950,28 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
+              );
+            })}
+          </div>
 
-            {/* Desktop Table (>= lg) */}
-            <div className="hidden lg:block overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-stone-200 text-[11px] font-bold text-stone-500 uppercase tracking-wider bg-stone-50/80">
-                    <th className="py-2.5 px-3">Ref &amp; Tanggal</th>
-                    <th className="py-2.5 px-3">Varietas &amp; Penyebab Susut</th>
-                    <th className="py-2.5 px-3 text-right">Berat Susut (Kg)</th>
-                    <th className="py-2.5 px-3 text-right">Modal Pokok / kg</th>
-                    <th className="py-2.5 px-3 text-right">Beban Penyusutan</th>
-                    {onDeleteShrinkage && <th className="py-2.5 px-3 text-center">Aksi</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-100 text-xs text-stone-700">
-                  {sortedShrinkages.map((record) => (
-                    <tr key={record.id} className="hover:bg-amber-50/30 transition">
+          {/* Desktop Table (>= lg) */}
+          <div className="hidden lg:block overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-stone-200 text-[11px] font-bold text-stone-500 uppercase tracking-wider bg-stone-50/80">
+                  <th className="py-2.5 px-3">Ref &amp; Tanggal</th>
+                  <th className="py-2.5 px-3">Varietas &amp; Alasan Koreksi</th>
+                  <th className="py-2.5 px-3 text-right">Berat Koreksi (Kg)</th>
+                  <th className="py-2.5 px-3 text-right">Modal Pokok / kg</th>
+                  <th className="py-2.5 px-3 text-right">Nilai Beban</th>
+                  {(onDeleteShrinkage || onDeleteReject) && <th className="py-2.5 px-3 text-center">Aksi</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100 text-xs text-stone-700">
+                {combinedCorrections.map(({ source, record }) => {
+                  const canRestore = source === 'shrinkage' ? Boolean(onDeleteShrinkage) : Boolean(onDeleteReject);
+                  return (
+                    <tr key={`${source}-${record.id}`} className="hover:bg-amber-50/30 transition">
                       <td className="py-3 px-3">
                         <span className="font-mono font-semibold text-stone-900 block text-[11px]">
                           {record.referenceNumber}
@@ -1938,242 +2005,49 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                       <td className="py-3 px-3 text-right font-mono font-bold tabular-nums whitespace-nowrap text-amber-800">
                         -{formatRupiah(record.totalLossAmount)}
                       </td>
-                      {onDeleteShrinkage && (
+                      {(onDeleteShrinkage || onDeleteReject) && (
                         <td className="py-3 px-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setShrinkageToDelete(record)}
-                            className="px-2.5 py-1 text-[11px] font-semibold text-stone-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-stone-200 hover:border-emerald-300 rounded-lg transition inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
-                            title="Hapus catatan susut & pulihkan stok"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                            <span>Pulihkan</span>
-                          </button>
+                          {canRestore && (
+                            <button
+                              type="button"
+                              onClick={() => setCorrectionToDelete({ source, record })}
+                              className="px-2.5 py-1 text-[11px] font-semibold text-stone-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-stone-200 hover:border-emerald-300 rounded-lg transition inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                              title="Hapus catatan koreksi stok & pulihkan stok"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Pulihkan</span>
+                            </button>
+                          )}
                         </td>
                       )}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="pt-2 border-t border-stone-100 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500">
-              <span>
-                Total Penyusutan Tercatat: <strong className="font-mono text-amber-800 tabular-nums">-{formatNumber(totalShrinkageKg)} kg</strong>
-              </span>
-              <span className="font-mono font-bold text-amber-900 tabular-nums">
-                Total Beban Penyusutan: -{formatRupiah(totalShrinkageLoss)}
-              </span>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        );
-      })()}
+
+          <div className="pt-2 border-t border-stone-100 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500">
+            <span>
+              Total Koreksi Stok Tercatat: <strong className="font-mono text-amber-800 tabular-nums">-{formatNumber(totalCorrectionKg)} kg</strong>
+            </span>
+            <span className="font-mono font-bold text-amber-900 tabular-nums">
+              Total Beban Koreksi: -{formatRupiah(totalCorrectionLoss)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* =========================================================================
-          RIWAYAT STOK PISANG REJECT (TERPISAH DARI LAPORAN SUSUT & STOK BARU)
+          MODAL CATAT KOREKSI STOK (GABUNGAN BUAH RUSAK / SUSUT DI LUAR PENJUALAN)
          ========================================================================= */}
-      {rejects.length > 0 && (() => {
-        const sortedRejects = [...rejects].sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
-
-        return (
-          <div className="bg-white rounded-xl border border-stone-200 p-4 sm:p-6 shadow-xs space-y-4 min-w-0">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-stone-100">
-              <div>
-                <div className="flex items-center gap-2 text-rose-700 text-xs font-bold tracking-wide mb-0.5">
-                  <PackageX className="w-3.5 h-3.5 shrink-0" />
-                  <span>Laporan Buah Rusak / Tidak Lolos Sortir</span>
-                </div>
-                <h3 className="text-base font-bold text-stone-900">
-                  Riwayat Stok Reject
-                </h3>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  Log historis buah reject yang memotong stok aktif saat pencatatan berlangsung, tanpa mengurangi pasokan baru dari petani maupun mengubah harga rata-rata (moving average).
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                <div className="text-xs text-stone-600 font-mono tabular-nums bg-rose-50/70 border border-rose-200 px-3 py-1.5 rounded-lg">
-                  <span className="font-semibold text-rose-800">{sortedRejects.length} catatan</span>
-                  <span aria-hidden="true" className="mx-1.5 text-rose-300">·</span>
-                  <span className="font-bold text-rose-900">-{formatNumber(totalRejectedKg)} kg</span>
-                  <span aria-hidden="true" className="mx-1.5 text-rose-300">·</span>
-                  <span className="font-bold text-rose-800">-{formatRupiah(totalRejectLoss)}</span>
-                </div>
-                {onGoToFinancialReport && (
-                  <button
-                    type="button"
-                    onClick={onGoToFinancialReport}
-                    className="px-3 py-1.5 text-xs font-semibold bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg transition flex items-center gap-1 cursor-pointer whitespace-nowrap"
-                  >
-                    <span>Rekap Keuangan</span>
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Mobile & Tablet Cards (< lg) */}
-            <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-3">
-              {sortedRejects.map((record) => (
-                <div
-                  key={record.id}
-                  className="p-3.5 rounded-xl border border-rose-200/80 bg-rose-50/35 space-y-2.5"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 text-[11px] text-stone-500">
-                        <span className="font-mono font-semibold text-stone-900">
-                          {record.referenceNumber}
-                        </span>
-                        <span aria-hidden="true">·</span>
-                        <span>{formatDateTimeIndo(record.date)}</span>
-                      </div>
-                      <span className="font-bold text-stone-900 block text-sm truncate mt-0.5">
-                        🍌 {record.bananaType}
-                      </span>
-                      <span className="text-[11px] font-medium text-rose-800 block mt-0.5">
-                        {record.reason}
-                      </span>
-                    </div>
-                  </div>
-
-                  {record.notes && (
-                    <p className="text-[11px] text-stone-600 italic bg-white/80 px-2.5 py-1.5 rounded-lg border border-stone-200/70">
-                      "{record.notes}"
-                    </p>
-                  )}
-
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-rose-200/60 text-xs">
-                    <div>
-                      <span className="text-[10px] text-stone-500 block">Jumlah Reject</span>
-                      <strong className="font-mono text-stone-900 tabular-nums">
-                        {formatNumber(record.weightKg)} kg
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-stone-500 block">Modal Pokok</span>
-                      <strong className="font-mono text-stone-700 tabular-nums">
-                        {formatRupiah(record.costPricePerKg)}/kg
-                      </strong>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] block font-semibold text-rose-700">
-                        Beban Modal
-                      </span>
-                      <strong className="font-mono tabular-nums text-rose-800">
-                        -{formatRupiah(record.totalLossAmount)}
-                      </strong>
-                    </div>
-                  </div>
-
-                  {onDeleteReject && (
-                    <div className="pt-2 border-t border-rose-200/60 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setRejectToDelete(record)}
-                        className="px-2.5 py-1 text-[11px] font-semibold text-stone-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-stone-200 hover:border-emerald-300 rounded-lg transition flex items-center gap-1 cursor-pointer"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>Pulihkan Stok</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Desktop Table (>= lg) */}
-            <div className="hidden lg:block overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-stone-200 text-[11px] font-bold text-stone-500 uppercase tracking-wider bg-stone-50/80">
-                    <th className="py-2.5 px-3">Ref &amp; Tanggal</th>
-                    <th className="py-2.5 px-3">Varietas &amp; Alasan Reject</th>
-                    <th className="py-2.5 px-3 text-right">Berat Reject (Kg)</th>
-                    <th className="py-2.5 px-3 text-right">Modal Pokok / kg</th>
-                    <th className="py-2.5 px-3 text-right">Beban Kerugian</th>
-                    {onDeleteReject && <th className="py-2.5 px-3 text-center">Aksi</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-100 text-xs text-stone-700">
-                  {sortedRejects.map((record) => (
-                    <tr key={record.id} className="hover:bg-rose-50/30 transition">
-                      <td className="py-3 px-3">
-                        <span className="font-mono font-semibold text-stone-900 block text-[11px]">
-                          {record.referenceNumber}
-                        </span>
-                        <span className="text-[10px] text-stone-400 block">
-                          {formatDateTimeIndo(record.date)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-stone-900">🍌 {record.bananaType}</span>
-                          <span aria-hidden="true" className="text-stone-300">·</span>
-                          <span className="text-[11px] font-medium text-rose-800">
-                            {record.reason}
-                          </span>
-                        </div>
-                        {record.notes && (
-                          <span className="text-[10px] text-stone-500 italic block mt-0.5">
-                            {record.notes}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono tabular-nums whitespace-nowrap">
-                        <span className="font-bold text-stone-900 block">
-                          {formatNumber(record.weightKg)} kg
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono tabular-nums text-stone-700 whitespace-nowrap">
-                        {formatRupiah(record.costPricePerKg)}/kg
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold tabular-nums whitespace-nowrap text-rose-700">
-                        -{formatRupiah(record.totalLossAmount)}
-                      </td>
-                      {onDeleteReject && (
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setRejectToDelete(record)}
-                            className="px-2.5 py-1 text-[11px] font-semibold text-stone-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-stone-200 hover:border-emerald-300 rounded-lg transition inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
-                            title="Hapus catatan reject & pulihkan ke stok siap kirim"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                            <span>Pulihkan</span>
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="pt-2 border-t border-stone-100 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500">
-              <span>
-                Total Stok Reject Tercatat: <strong className="font-mono text-rose-700 tabular-nums">-{formatNumber(totalRejectedKg)} kg</strong>
-              </span>
-              <span className="font-mono font-bold text-rose-800 tabular-nums">
-                Total Beban Kerugian Reject: -{formatRupiah(totalRejectLoss)}
-              </span>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* =========================================================================
-          MODAL CATAT SUSUT BERAT / SELISIH TIMBANG
-         ========================================================================= */}
-      {shrinkageTargetStock && (
+      {correctionTargetStock && (
         <div
           className="fixed inset-0 z-50 bg-stone-900/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
           onClick={() => {
             const restore = captureScrollState();
             blurActiveTrigger();
-            setShrinkageTargetStock(null);
+            setCorrectionTargetStock(null);
             restore();
           }}
         >
@@ -2182,7 +2056,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
-            aria-labelledby="modal-shrinkage-stock-title"
+            aria-labelledby="modal-correction-stock-title"
           >
             {/* Header Modal */}
             <div className="flex-shrink-0 px-5 py-4 border-b border-amber-200 bg-amber-50/80 flex items-center justify-between gap-3">
@@ -2191,11 +2065,11 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                   <Scale className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
-                  <h3 id="modal-shrinkage-stock-title" className="text-sm sm:text-base font-bold text-stone-900 truncate">
-                    Koreksi Susut / Selisih Timbang
+                  <h3 id="modal-correction-stock-title" className="text-sm sm:text-base font-bold text-stone-900 truncate">
+                    Koreksi Stok Gudang
                   </h3>
                   <p className="text-[11px] text-amber-900/80 truncate">
-                    Penyesuaian selisih timbangan atau penyusutan bobot stok
+                    Catat buah busuk/dibuang atau susut stok di luar penjualan
                   </p>
                 </div>
               </div>
@@ -2204,23 +2078,23 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                 onClick={() => {
                   const restore = captureScrollState();
                   blurActiveTrigger();
-                  setShrinkageTargetStock(null);
+                  setCorrectionTargetStock(null);
                   restore();
                 }}
                 className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 rounded-lg transition cursor-pointer shrink-0"
-                aria-label="Tutup modal susut"
+                aria-label="Tutup modal koreksi stok"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Form & Scrollable Body */}
-            <form onSubmit={handleSubmitShrinkage} className="flex flex-col flex-1 overflow-hidden">
+            <form onSubmit={handleSubmitCorrection} className="flex flex-col flex-1 overflow-hidden">
               <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 text-xs">
-                {shrinkageModalError && (
+                {correctionModalError && (
                   <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                    <span>{shrinkageModalError}</span>
+                    <span>{correctionModalError}</span>
                   </div>
                 )}
 
@@ -2228,271 +2102,68 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                 <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <span className="text-[10px] text-stone-400 uppercase font-semibold block">Varietas Dipilih</span>
-                    <strong className="text-sm text-stone-900 block truncate">🍌 {shrinkageTargetStock.bananaType}</strong>
+                    <strong className="text-sm text-stone-900 block truncate">🍌 {correctionTargetStock.bananaType}</strong>
                     <span className="text-[11px] text-stone-600 font-mono">
-                      Stok Tercatat: <strong>{formatNumber(shrinkageTargetStock.stockKg)} kg</strong>
+                      Stok Tersedia: <strong>{formatNumber(correctionTargetStock.stockKg)} kg</strong>
                     </span>
                   </div>
                   <div className="text-right shrink-0">
                     <span className="text-[10px] text-stone-400 block">Modal Pokok Rata2</span>
                     <strong className="font-mono text-stone-900 text-xs sm:text-sm tabular-nums">
                       {formatRupiah(
-                        shrinkageTargetStock.avgBuyPricePerKg > 0
-                          ? shrinkageTargetStock.avgBuyPricePerKg
-                          : (TYPICAL_BUY_PRICES[shrinkageTargetStock.bananaType] || 0)
+                        correctionTargetStock.avgBuyPricePerKg > 0
+                          ? correctionTargetStock.avgBuyPricePerKg
+                          : (TYPICAL_BUY_PRICES[correctionTargetStock.bananaType] || 0)
                       )}
                       /kg
                     </strong>
                   </div>
                 </div>
 
-                {/* Input Berat Susut */}
-                <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
-                    Berat Susut / Selisih (kg) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0.01"
-                    max={shrinkageTargetStock.stockKg}
-                    required
-                    value={shrinkageWeightKg}
-                    onChange={(e) => {
-                      setShrinkageWeightKg(e.target.value);
-                      setShrinkageModalError('');
-                    }}
-                    placeholder="Contoh: 5"
-                    className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-stone-300 rounded-lg font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                  <span className="text-[10px] text-stone-400 block mt-0.5">
-                    Maksimal: {formatNumber(shrinkageTargetStock.stockKg)} kg
-                  </span>
-                </div>
-
-                {/* Alasan Susut / Selisih */}
-                <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
-                    Penyebab Selisih / Penyusutan <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={shrinkageReason}
-                    onChange={(e) => setShrinkageReason(e.target.value)}
-                    className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  >
-                    {SHRINKAGE_REASONS.map(reason => (
-                      <option key={reason} value={reason}>
-                        {reason}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Catatan Opsional */}
-                <div>
-                  <label className="block font-semibold text-stone-700 mb-1">
-                    Catatan Timbangan (Opsional)
-                  </label>
-                  <input
-                    type="text"
-                    autoCapitalize="sentences"
-                    value={shrinkageNotes}
-                    onChange={(e) => handleCapitalizedInputChange(e, capitalizeFirstLetter, setShrinkageNotes)}
-                    placeholder="Contoh: Selisih timbang ulang saat muat truk ke gudang pusat"
-                    className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  />
-                </div>
-
-                {/* Live Impact Preview */}
-                {(() => {
-                  const previewKg = parseWeightInput(shrinkageWeightKg);
-                  const costBasis = shrinkageTargetStock.avgBuyPricePerKg > 0
-                    ? Math.round(shrinkageTargetStock.avgBuyPricePerKg)
-                    : (TYPICAL_BUY_PRICES[shrinkageTargetStock.bananaType] || 0);
-                  const previewLoss = Math.round(previewKg * costBasis);
-                  const remainingKg = Math.round(Math.max(0, shrinkageTargetStock.stockKg - previewKg) * 100) / 100;
-
-                  return (
-                    <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 block">
-                        Simulasi Koreksi Stok &amp; Laporan Penyusutan
-                      </span>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-stone-600">Sisa Stok Aktif Setelah Susut:</span>
-                        <strong className="font-mono text-stone-900 tabular-nums">
-                          {formatNumber(remainingKg)} kg
-                        </strong>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-stone-600">Modal Rata-rata (Tetap):</span>
-                        <strong className="font-mono text-stone-700 tabular-nums">
-                          {formatRupiah(costBasis)}/kg
-                        </strong>
-                      </div>
-                      <div className="flex items-center justify-between text-xs pt-1.5 border-t border-amber-200/80">
-                        <span className="font-semibold text-amber-950">Dicatat ke Riwayat Susut:</span>
-                        <strong className="font-mono font-extrabold text-amber-900 text-sm tabular-nums">
-                          -{formatRupiah(previewLoss)}
-                        </strong>
-                      </div>
-                      <p className="text-[10px] text-amber-900/80 leading-snug pt-0.5">
-                        Catatan susut ini tidak akan mengurangi stok pada pasokan baru yang masuk berikutnya.
-                      </p>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Sticky Footer */}
-              <div className="flex-shrink-0 px-5 py-3.5 bg-stone-50 border-t border-stone-200 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const restore = captureScrollState();
-                    blurActiveTrigger();
-                    setShrinkageTargetStock(null);
-                    restore();
-                  }}
-                  className="px-4 py-2 text-xs font-semibold text-stone-700 bg-white border border-stone-300 hover:bg-stone-100 rounded-lg transition cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Scale className="w-3.5 h-3.5" />
-                  <span>Simpan Koreksi Susut</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          MODAL CATAT STOK PISANG REJECT (PENYESUAIAN & PEMBEBANAN KERUGIAN)
-         ========================================================================= */}
-      {rejectTargetStock && (
-        <div
-          className="fixed inset-0 z-50 bg-stone-900/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
-          onClick={() => {
-            const restore = captureScrollState();
-            blurActiveTrigger();
-            setRejectTargetStock(null);
-            restore();
-          }}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden border border-stone-200 animate-in zoom-in-95 duration-150"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-reject-stock-title"
-          >
-            {/* Header Modal */}
-            <div className="flex-shrink-0 px-5 py-4 border-b border-rose-200 bg-rose-50/80 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-rose-100 border border-rose-200 text-rose-700 flex items-center justify-center shrink-0">
-                  <PackageX className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <h3 id="modal-reject-stock-title" className="text-sm sm:text-base font-bold text-stone-900 truncate">
-                    Catat Stok Pisang Reject
-                  </h3>
-                  <p className="text-[11px] text-rose-800/80 truncate">
-                    Penyesuaian stok &amp; pencatatan beban buah rusak/busuk
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const restore = captureScrollState();
-                  blurActiveTrigger();
-                  setRejectTargetStock(null);
-                  restore();
-                }}
-                className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 rounded-lg transition cursor-pointer shrink-0"
-                aria-label="Tutup modal reject"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Form & Scrollable Body */}
-            <form onSubmit={handleSubmitReject} className="flex flex-col flex-1 overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 text-xs">
-                {rejectModalError && (
-                  <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                    <span>{rejectModalError}</span>
-                  </div>
-                )}
-
-                {/* Info Varietas & Modal Saat Ini */}
-                <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <span className="text-[10px] text-stone-400 uppercase font-semibold block">Varietas Dipilih</span>
-                    <strong className="text-sm text-stone-900 block truncate">🍌 {rejectTargetStock.bananaType}</strong>
-                    <span className="text-[11px] text-stone-600 font-mono">
-                      Stok Tersedia: <strong>{formatNumber(rejectTargetStock.stockKg)} kg</strong>
-                    </span>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="text-[10px] text-stone-400 block">Modal Pokok Rata2</span>
-                    <strong className="font-mono text-stone-900 text-xs sm:text-sm tabular-nums">
-                      {formatRupiah(
-                        rejectTargetStock.avgBuyPricePerKg > 0
-                          ? rejectTargetStock.avgBuyPricePerKg
-                          : (TYPICAL_BUY_PRICES[rejectTargetStock.bananaType] || 0)
-                      )}
-                      /kg
-                    </strong>
-                  </div>
-                </div>
-
-                {/* Input Berat Reject */}
+                {/* Input Berat Koreksi Stok */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="font-semibold text-stone-700">
-                      Berat Reject (kg) <span className="text-red-500">*</span>
+                      Berat Koreksi Stok (kg) <span className="text-red-500">*</span>
                     </label>
                     <button
                       type="button"
-                      onClick={handleSetRejectAllStock}
-                      className="text-[10px] font-bold text-rose-700 hover:underline cursor-pointer"
+                      onClick={handleSetCorrectionAllStock}
+                      className="text-[10px] font-bold text-amber-800 hover:underline cursor-pointer"
                     >
-                      Reject Semua
+                      Koreksi Semua
                     </button>
                   </div>
                   <input
                     type="number"
                     step="any"
                     min="0.01"
-                    max={rejectTargetStock.stockKg}
+                    max={correctionTargetStock.stockKg}
                     required
-                    value={rejectWeightKg}
-                    onChange={(e) => handleRejectWeightChange(e.target.value)}
-                    placeholder="Contoh: 25"
-                    className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-stone-300 rounded-lg font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    value={correctionWeightKg}
+                    onChange={(e) => {
+                      setCorrectionWeightKg(e.target.value);
+                      setCorrectionModalError('');
+                    }}
+                    placeholder="Contoh: 15"
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-stone-300 rounded-lg font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                   <span className="text-[10px] text-stone-400 block mt-0.5">
-                    Maksimal: {formatNumber(rejectTargetStock.stockKg)} kg
+                    Maksimal: {formatNumber(correctionTargetStock.stockKg)} kg
                   </span>
                 </div>
 
-                {/* Alasan Reject */}
+                {/* Alasan Koreksi Stok */}
                 <div>
                   <label className="block font-semibold text-stone-700 mb-1">
-                    Alasan / Kondisi Reject <span className="text-red-500">*</span>
+                    Alasan Koreksi Stok <span className="text-red-500">*</span>
                   </label>
                   <select
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    value={correctionReason}
+                    onChange={(e) => setCorrectionReason(e.target.value)}
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                   >
-                    {REJECT_REASONS.map(reason => (
+                    {STOCK_CORRECTION_REASONS.map(reason => (
                       <option key={reason} value={reason}>
                         {reason}
                       </option>
@@ -2508,26 +2179,26 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                   <input
                     type="text"
                     autoCapitalize="sentences"
-                    value={rejectNotes}
-                    onChange={(e) => handleCapitalizedInputChange(e, capitalizeFirstLetter, setRejectNotes)}
-                    placeholder="Contoh: Sortiran gudang pagi, kena panas/memar"
-                    className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    value={correctionNotes}
+                    onChange={(e) => handleCapitalizedInputChange(e, capitalizeFirstLetter, setCorrectionNotes)}
+                    placeholder="Contoh: Pisang busuk di gudang belum sempat terjual"
+                    className="w-full px-3 py-2 text-xs sm:text-sm bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
 
                 {/* Live Impact Preview */}
                 {(() => {
-                  const previewKg = parseWeightInput(rejectWeightKg);
-                  const costBasis = rejectTargetStock.avgBuyPricePerKg > 0
-                    ? Math.round(rejectTargetStock.avgBuyPricePerKg)
-                    : (TYPICAL_BUY_PRICES[rejectTargetStock.bananaType] || 0);
+                  const previewKg = parseWeightInput(correctionWeightKg);
+                  const costBasis = correctionTargetStock.avgBuyPricePerKg > 0
+                    ? Math.round(correctionTargetStock.avgBuyPricePerKg)
+                    : (TYPICAL_BUY_PRICES[correctionTargetStock.bananaType] || 0);
                   const previewLoss = Math.round(previewKg * costBasis);
-                  const remainingKg = Math.round(Math.max(0, rejectTargetStock.stockKg - previewKg) * 100) / 100;
+                  const remainingKg = Math.round(Math.max(0, correctionTargetStock.stockKg - previewKg) * 100) / 100;
 
                   return (
-                    <div className="p-3.5 bg-rose-50/80 border border-rose-200 rounded-xl space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-rose-900 block">
-                        Simulasi Dampak Inventori &amp; Keuangan
+                    <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 block">
+                        Simulasi Dampak Koreksi Stok
                       </span>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-stone-600">Sisa Stok Siap Kirim:</span>
@@ -2535,14 +2206,20 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                           {formatNumber(remainingKg)} kg
                         </strong>
                       </div>
-                      <div className="flex items-center justify-between text-xs pt-1.5 border-t border-rose-200/80">
-                        <span className="font-semibold text-rose-900">Beban Kerugian Modal:</span>
-                        <strong className="font-mono font-extrabold text-rose-800 text-sm tabular-nums">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-stone-600">Modal Rata-rata (Tetap):</span>
+                        <strong className="font-mono text-stone-700 tabular-nums">
+                          {formatRupiah(costBasis)}/kg
+                        </strong>
+                      </div>
+                      <div className="flex items-center justify-between text-xs pt-1.5 border-t border-amber-200/80">
+                        <span className="font-semibold text-amber-950">Nilai Beban Koreksi Stok:</span>
+                        <strong className="font-mono font-extrabold text-amber-900 text-sm tabular-nums">
                           -{formatRupiah(previewLoss)}
                         </strong>
                       </div>
-                      <p className="text-[10px] text-rose-800/80 leading-snug pt-0.5">
-                        Catatan reject tersimpan sebagai log historis dan tidak mengurangi pasokan baru yang masuk berikutnya.
+                      <p className="text-[10px] text-amber-900/80 leading-snug pt-0.5">
+                        Untuk selisih timbang saat penjualan (termasuk pisang reject yang langsung dibuang saat jual), cukup isi langsung di keranjang penjualan.
                       </p>
                     </div>
                   );
@@ -2556,7 +2233,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                   onClick={() => {
                     const restore = captureScrollState();
                     blurActiveTrigger();
-                    setRejectTargetStock(null);
+                    setCorrectionTargetStock(null);
                     restore();
                   }}
                   className="px-4 py-2 text-xs font-semibold text-stone-700 bg-white border border-stone-300 hover:bg-stone-100 rounded-lg transition cursor-pointer"
@@ -2565,10 +2242,10 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                 >
-                  <PackageX className="w-3.5 h-3.5" />
-                  <span>Simpan Stok Reject</span>
+                  <Scale className="w-3.5 h-3.5" />
+                  <span>Simpan Koreksi Stok</span>
                 </button>
               </div>
             </form>
@@ -2577,15 +2254,15 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
       )}
 
       {/* =========================================================================
-          MODAL KONFIRMASI PULIHKAN STOK DARI CATATAN REJECT
+          MODAL KONFIRMASI PULIHKAN STOK DARI RIWAYAT KOREKSI STOK
          ========================================================================= */}
-      {rejectToDelete && onDeleteReject && (
+      {correctionToDelete && (
         <div
           className="fixed inset-0 z-50 bg-stone-900/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
           onClick={() => {
             const restore = captureScrollState();
             blurActiveTrigger();
-            setRejectToDelete(null);
+            setCorrectionToDelete(null);
             restore();
           }}
         >
@@ -2594,7 +2271,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
-            aria-labelledby="modal-restore-reject-title"
+            aria-labelledby="modal-restore-correction-title"
           >
             <div className="flex-shrink-0 px-5 py-4 border-b border-stone-200 bg-emerald-50/70 flex items-center justify-between gap-2">
               <div className="flex items-center gap-3">
@@ -2602,11 +2279,11 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                   <RotateCcw className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 id="modal-restore-reject-title" className="text-sm sm:text-base font-bold text-stone-900">
-                    Pulihkan Catatan Stok Reject?
+                  <h3 id="modal-restore-correction-title" className="text-sm sm:text-base font-bold text-stone-900">
+                    Pulihkan Catatan Koreksi Stok?
                   </h3>
                   <p className="text-[11px] text-stone-500">
-                    Stok dikembalikan ke siap kirim &amp; beban kerugian dibatalkan
+                    Stok dikembalikan ke siap kirim &amp; beban koreksi dibatalkan
                   </p>
                 </div>
               </div>
@@ -2615,7 +2292,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                 onClick={() => {
                   const restore = captureScrollState();
                   blurActiveTrigger();
-                  setRejectToDelete(null);
+                  setCorrectionToDelete(null);
                   restore();
                 }}
                 className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 rounded-lg transition cursor-pointer"
@@ -2628,21 +2305,23 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
               <div className="p-3.5 bg-stone-50 border border-stone-200 rounded-xl space-y-1.5">
                 <div className="flex justify-between">
                   <span className="text-stone-500">No. Referensi:</span>
-                  <strong className="font-mono">{rejectToDelete.referenceNumber}</strong>
+                  <strong className="font-mono">{correctionToDelete.record.referenceNumber}</strong>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-stone-500">Varietas:</span>
-                  <strong>🍌 {rejectToDelete.bananaType}</strong>
+                  <strong>🍌 {correctionToDelete.record.bananaType}</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-stone-500">Volume Reject:</span>
+                  <span className="text-stone-500">Berat Koreksi:</span>
                   <strong className="font-mono">
-                    {formatNumber(rejectToDelete.weightKg)} kg
+                    {formatNumber(correctionToDelete.record.weightKg)} kg
                   </strong>
                 </div>
                 <div className="flex justify-between border-t border-stone-200 pt-1.5">
-                  <span className="text-stone-500">Beban Kerugian:</span>
-                  <strong className="font-mono text-rose-700">-{formatRupiah(rejectToDelete.totalLossAmount)}</strong>
+                  <span className="text-stone-500">Nilai Beban:</span>
+                  <strong className="font-mono text-amber-800">
+                    -{formatRupiah(correctionToDelete.record.totalLossAmount)}
+                  </strong>
                 </div>
               </div>
             </div>
@@ -2653,7 +2332,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                 onClick={() => {
                   const restore = captureScrollState();
                   blurActiveTrigger();
-                  setRejectToDelete(null);
+                  setCorrectionToDelete(null);
                   restore();
                 }}
                 className="px-4 py-2 text-xs font-semibold text-stone-700 bg-white border border-stone-300 hover:bg-stone-100 rounded-lg transition cursor-pointer"
@@ -2664,114 +2343,14 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                 type="button"
                 onClick={() => {
                   const restore = captureScrollState();
-                  const deleted = rejectToDelete;
+                  const { source, record } = correctionToDelete;
                   blurActiveTrigger();
-                  onDeleteReject(deleted.id);
-                  setRejectToDelete(null);
-                  restore();
-                }}
-                className="px-4 py-2 text-xs font-semibold text-white bg-emerald-800 hover:bg-emerald-900 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>Ya, Pulihkan Stok</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          MODAL KONFIRMASI PULIHKAN STOK DARI CATATAN SUSUT / SELISIH TIMBANG
-         ========================================================================= */}
-      {shrinkageToDelete && onDeleteShrinkage && (
-        <div
-          className="fixed inset-0 z-50 bg-stone-900/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
-          onClick={() => {
-            const restore = captureScrollState();
-            blurActiveTrigger();
-            setShrinkageToDelete(null);
-            restore();
-          }}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden border border-stone-200 animate-in zoom-in-95 duration-150"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-restore-shrinkage-title"
-          >
-            <div className="flex-shrink-0 px-5 py-4 border-b border-stone-200 bg-emerald-50/70 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-100 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
-                  <RotateCcw className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 id="modal-restore-shrinkage-title" className="text-sm sm:text-base font-bold text-stone-900">
-                    Pulihkan Koreksi Susut / Selisih?
-                  </h3>
-                  <p className="text-[11px] text-stone-500">
-                    Stok dikembalikan ke siap kirim &amp; beban susut dibatalkan
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const restore = captureScrollState();
-                  blurActiveTrigger();
-                  setShrinkageToDelete(null);
-                  restore();
-                }}
-                className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 rounded-lg transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-5 space-y-3 text-xs text-stone-700">
-              <div className="p-3.5 bg-stone-50 border border-stone-200 rounded-xl space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="text-stone-500">No. Referensi:</span>
-                  <strong className="font-mono">{shrinkageToDelete.referenceNumber}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-stone-500">Varietas:</span>
-                  <strong>🍌 {shrinkageToDelete.bananaType}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-stone-500">Berat Susut / Selisih:</span>
-                  <strong className="font-mono">
-                    {formatNumber(shrinkageToDelete.weightKg)} kg
-                  </strong>
-                </div>
-                <div className="flex justify-between border-t border-stone-200 pt-1.5">
-                  <span className="text-stone-500">Beban Modal Susut:</span>
-                  <strong className="font-mono text-amber-800">-{formatRupiah(shrinkageToDelete.totalLossAmount)}</strong>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-shrink-0 px-5 py-3.5 bg-stone-50 border-t border-stone-200 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  const restore = captureScrollState();
-                  blurActiveTrigger();
-                  setShrinkageToDelete(null);
-                  restore();
-                }}
-                className="px-4 py-2 text-xs font-semibold text-stone-700 bg-white border border-stone-300 hover:bg-stone-100 rounded-lg transition cursor-pointer"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const restore = captureScrollState();
-                  const deleted = shrinkageToDelete;
-                  blurActiveTrigger();
-                  onDeleteShrinkage(deleted.id);
-                  setShrinkageToDelete(null);
+                  if (source === 'shrinkage' && onDeleteShrinkage) {
+                    onDeleteShrinkage(record.id);
+                  } else if (source === 'reject' && onDeleteReject) {
+                    onDeleteReject(record.id);
+                  }
+                  setCorrectionToDelete(null);
                   restore();
                 }}
                 className="px-4 py-2 text-xs font-semibold text-white bg-emerald-800 hover:bg-emerald-900 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer"
