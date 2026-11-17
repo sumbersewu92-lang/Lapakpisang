@@ -1,4 +1,5 @@
 export interface PurchaseItem {
+  id?: string;
   bananaType: string;
   bunches: number;
   weightKg: number;
@@ -10,13 +11,13 @@ export interface FarmerPurchase {
   id: string;
   receiptNumber: string;
   farmerName: string;
-  bananaType: string; // Ringkasan varietas (misal: "Pisang Rames" atau "Pisang Rames + 1 jenis lainnya")
-  items?: PurchaseItem[]; // Rincian multi-item dalam satu nota
-  bunches: number; // Jumlah total tandan
-  weightKg: number; // Total berat kg
-  buyPricePerKg: number; // Rata-rata harga beli per kg
-  totalPayment: number; // Total pembayaran
-  date: string; // ISO string
+  bananaType: string;
+  items?: PurchaseItem[];
+  bunches: number;
+  weightKg: number;
+  buyPricePerKg: number;
+  totalPayment: number;
+  date: string;
   notes?: string;
   createdById?: string;
   createdByName?: string;
@@ -36,24 +37,24 @@ export interface SaleItem {
 export interface CentralWarehouseSale {
   id: string;
   invoiceNumber: string;
-  buyerWarehouseName: string; // Nama Pembeli / Gudang Tujuan
-  buyerWhatsApp?: string; // No WhatsApp Pembeli (Opsional)
-  buyerPhone?: string; // Telepon / No WA
-  bananaType: string; // Primary type or summary description
-  items?: SaleItem[]; // Multi-item breakdown
-  weightKg: number; // Total weight
-  bunches?: number; // Total bunches
-  sellPricePerKg: number; // Average sell price
-  totalRevenue: number; // Sum of items subtotalRevenue
-  estimatedCost: number; // Sum of items subtotalCost
-  netProfit: number; // totalRevenue - estimatedCost
-  profitMarginPercent: number; // (netProfit / totalRevenue) * 100
+  buyerWarehouseName: string;
+  buyerWhatsApp?: string;
+  buyerPhone?: string;
+  bananaType: string;
+  items?: SaleItem[];
+  weightKg: number;
+  bunches?: number;
+  sellPricePerKg: number;
+  totalRevenue: number;
+  estimatedCost: number;
+  netProfit: number;
+  profitMarginPercent: number;
   date: string;
   notes?: string;
-  paymentStatus: 'LUNAS' | 'BELUM_LUNAS'; // Status Pembayaran
+  paymentStatus: 'LUNAS' | 'BELUM_LUNAS';
   paymentMethod?: 'Transfer Bank' | 'Tunai Langsung' | 'Transfer Susulan (Piutang)';
-  dueDate?: string; // Tanggal Janji Bayar / Jatuh Tempo jika belum lunas
-  paidAt?: string; // Tanggal pelunasan
+  dueDate?: string;
+  paidAt?: string;
   createdById?: string;
   createdByName?: string;
 }
@@ -72,29 +73,34 @@ export interface BananaStockSummary {
 
 export interface BananaRejectRecord {
   id: string;
-  referenceNumber: string; // e.g., RJ-20261113-123
+  referenceNumber: string;
   bananaType: string;
   weightKg: number;
   bunches: number;
-  costPricePerKg: number; // Harga beli rata-rata stok saat reject dicatat
-  totalLossAmount: number; // weightKg * costPricePerKg
+  costPricePerKg: number;
+  totalLossAmount: number;
   reason: string;
   notes?: string;
-  date: string; // ISO string
+  date: string;
 }
 
 export interface BananaShrinkageRecord {
   id: string;
-  referenceNumber: string; // e.g., SS-20261113-123
+  referenceNumber: string;
   bananaType: string;
-  weightKg: number; // Berat susut / selisih timbang (kg)
-  bunches: number; // Tandan yang disesuaikan (bisa 0 jika hanya susut berat)
-  costPricePerKg: number; // Harga beli rata-rata stok saat koreksi dicatat
-  totalLossAmount: number; // weightKg * costPricePerKg
+  weightKg: number;
+  bunches: number;
+  costPricePerKg: number;
+  totalLossAmount: number;
   reason: string;
   notes?: string;
-  date: string; // ISO string
+  date: string;
 }
+
+// Compatibility aliases
+export type BananaPurchaseItem = PurchaseItem;
+export type BananaPurchase = FarmerPurchase;
+export type WarehouseSale = CentralWarehouseSale;
 
 export type UserRole = 'owner' | 'kasir';
 

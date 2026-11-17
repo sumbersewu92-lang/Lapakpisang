@@ -1,4 +1,16 @@
-import { FarmerPurchase, CentralWarehouseSale, BananaRejectRecord, BananaShrinkageRecord } from '../types/banana';
+import {
+  FarmerPurchase,
+  CentralWarehouseSale,
+  BananaRejectRecord,
+  BananaShrinkageRecord
+} from '../types/banana';
+
+export const STORE_NAME = 'Lapak Pisang Sumber Sewu';
+export const STORE_BRAND = 'Lapak Pisangku';
+export const STORE_SUBTITLE = 'Sistem Jual Beli dan Management Pisang';
+export const STORE_ADDRESS = 'Toko Sumber Sewu - Sukatani';
+export const STORE_WHATSAPP = '0822-8118-5001';
+export const STORE_WHATSAPP_COMPACT = '082281185001';
 
 export const MAIN_BANANA_TYPES = [
   'Pisang Rames',
@@ -7,6 +19,8 @@ export const MAIN_BANANA_TYPES = [
 ];
 
 export const POPULAR_BANANA_TYPES = MAIN_BANANA_TYPES;
+export const BANANA_TYPES: string[] = MAIN_BANANA_TYPES;
+export const CUSTOM_BANANA_OPTION = '__CUSTOM_BANANA__';
 
 export const REJECT_REASONS = [
   'Busuk / Terlalu Matang',
@@ -26,6 +40,20 @@ export const SHRINKAGE_REASONS = [
 
 export const INITIAL_REJECTS: BananaRejectRecord[] = [];
 export const INITIAL_SHRINKAGES: BananaShrinkageRecord[] = [];
+export const INITIAL_PURCHASES: FarmerPurchase[] = [];
+export const INITIAL_SALES: CentralWarehouseSale[] = [];
+
+export const TYPICAL_BUY_PRICES: Record<string, number> = {
+  'Pisang Rames': 5500,
+  'Pisang Lumut (Biasa)': 7000,
+  'Pisang Lumut (Bungkus)': 8500
+};
+
+export const TYPICAL_SELL_PRICES: Record<string, number> = {
+  'Pisang Rames': 7500,
+  'Pisang Lumut (Biasa)': 9500,
+  'Pisang Lumut (Bungkus)': 11500
+};
 
 export const normalizeVarietyName = (name: string): string => {
   const trimmed = (name || '').trim().replace(/\s+/g, ' ');
@@ -40,22 +68,6 @@ export const normalizeVarietyName = (name: string): string => {
 export const isSameVariety = (typeA: string, typeB: string): boolean => {
   return normalizeVarietyName(typeA).toLowerCase() === normalizeVarietyName(typeB).toLowerCase();
 };
-
-export const TYPICAL_BUY_PRICES: Record<string, number> = {
-  'Pisang Rames': 5500,
-  'Pisang Lumut (Biasa)': 7000,
-  'Pisang Lumut (Bungkus)': 8500
-};
-
-export const TYPICAL_SELL_PRICES: Record<string, number> = {
-  'Pisang Rames': 7500,
-  'Pisang Lumut (Biasa)': 9500,
-  'Pisang Lumut (Bungkus)': 11500
-};
-
-export const INITIAL_PURCHASES: FarmerPurchase[] = [];
-
-export const INITIAL_SALES: CentralWarehouseSale[] = [];
 
 export function toLocalDateInput(date: Date = new Date()): string {
   const yyyy = date.getFullYear();
@@ -126,6 +138,13 @@ export function formatNumber(num: number): string {
   return new Intl.NumberFormat('id-ID', {
     maximumFractionDigits: 2
   }).format(safeNum);
+}
+
+export function formatSignedKg(kg: number): string {
+  const safeKg = Number.isFinite(kg) ? Math.round(kg * 100) / 100 : 0;
+  if (safeKg > 0) return `+${formatNumber(safeKg)} kg`;
+  if (safeKg < 0) return `-${formatNumber(Math.abs(safeKg))} kg`;
+  return '0 kg';
 }
 
 export function formatDateTimeIndo(dateStr: string): string {

@@ -1354,7 +1354,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                                 key={idx}
                                 className="text-[10px] font-medium bg-emerald-50 text-emerald-900 px-1.5 py-0.5 rounded border border-emerald-200 font-mono"
                               >
-                                {it.bananaType.replace('Pisang ', '')}: {formatNumber(it.weightKg)}kg
+                                {(it.bananaType || 'Pisang').replace('Pisang ', '')}: {formatNumber(it.weightKg)}kg
                               </span>
                             ))}
                           </div>
@@ -1471,7 +1471,7 @@ export const TabStockAndSales: React.FC<TabStockAndSalesProps> = ({
                                       key={idx} 
                                       className="text-[10px] font-medium bg-emerald-50 text-emerald-900 px-1.5 py-0.2 rounded border border-emerald-200 font-mono"
                                     >
-                                      {it.bananaType.replace('Pisang ', '')}: {formatNumber(it.weightKg)}kg
+                                      {(it.bananaType || 'Pisang').replace('Pisang ', '')}: {formatNumber(it.weightKg)}kg
                                     </span>
                                   ))}
                                 </div>

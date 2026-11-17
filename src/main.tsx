@@ -32,9 +32,9 @@ class AppErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState>
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-stone-100 flex items-center justify-center p-6">
+        <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6">
           <div className="max-w-md w-full bg-white rounded-2xl border border-stone-200 shadow-lg p-6 text-center space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto text-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center mx-auto text-2xl">
               🍌
             </div>
             <div className="space-y-1.5">
@@ -61,8 +61,11 @@ class AppErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState>
   }
 }
 
-createRoot(document.getElementById('root')!).render(
-  <AppErrorBoundary>
-    <App />
-  </AppErrorBoundary>
-);
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  createRoot(rootElement).render(
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
+  );
+}

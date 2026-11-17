@@ -1,18 +1,46 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <title>Lapak Pisang Sumber Sewu - Manajemen Gudang Pengepul Pisang</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Remix Lapak Pisangku - Manajemen Gudang Pengepul Pisang</title>
     <meta name="description" content="Sistem aplikasi manajemen lapak dan gudang pengepul pisang mentah: pencatatan pembelian dari petani, inventori stok pisang, dan penjualan ke gudang pusat dengan kalkulasi margin keuntungan otomatis." />
-    <meta property="og:title" content="Lapak Pisang Sumber Sewu - Manajemen Gudang Pengepul Pisang" />
+    <meta property="og:title" content="Remix Lapak Pisangku - Manajemen Gudang Pengepul Pisang" />
     <meta property="og:description" content="Sistem aplikasi manajemen lapak dan gudang pengepul pisang mentah: pencatatan pembelian dari petani, inventori stok pisang, dan penjualan ke gudang pusat dengan kalkulasi margin keuntungan otomatis." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      window.__lapakLoadFailed = false;
+      window.__lapakLoadErrorDetail = '';
+      window.addEventListener(
+        'error',
+        function (e) {
+          var t = e && e.target;
+          if (t && t !== window && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+            var src = t.src || t.href || '';
+            if (src.indexOf('fonts.googleapis.com') === -1) {
+              window.__lapakLoadFailed = true;
+              window.__lapakLoadErrorDetail = 'Gagal memuat file: ' + src;
+            }
+          } else if (e && e.message) {
+            window.__lapakLoadFailed = true;
+            window.__lapakLoadErrorDetail = String(e.message);
+          }
+        },
+        true
+      );
+      window.addEventListener('unhandledrejection', function (e) {
+        var root = document.getElementById('root');
+        if (root && root.childElementCount === 0 && e && e.reason) {
+          window.__lapakLoadFailed = true;
+          window.__lapakLoadErrorDetail = e.reason.message ? String(e.reason.message) : String(e.reason);
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
@@ -21,33 +49,32 @@
         Aplikasi Lapak Pisang Sumber Sewu memerlukan JavaScript aktif di browser Anda.
       </div>
     </noscript>
-    <script>
-      window.addEventListener(
-        'error',
-        function (e) {
-          var t = e && e.target;
-          if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
-            window.__lapakLoadFailed = true;
-          }
-        },
-        true
-      );
-    </script>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       window.setTimeout(function () {
         var root = document.getElementById('root');
-        if (root && root.childElementCount === 0 && window.__lapakLoadFailed) {
+        if (root && root.childElementCount === 0) {
+          var isMissingBuild =
+            window.__lapakLoadFailed ||
+            window.location.protocol === 'file:';
+          if (!isMissingBuild) {
+            return;
+          }
+          var detail = window.__lapakLoadErrorDetail
+            ? '<p style="font-size:11px;color:#78716c;background:#f5f5f4;border-radius:8px;padding:8px 10px;margin:0 0 14px;word-break:break-word;">' +
+              window.__lapakLoadErrorDetail.replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+              '</p>'
+            : '';
           root.innerHTML =
-            '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f5f5f4;font-family:system-ui,sans-serif;">' +
+            '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f8fafc;font-family:system-ui,sans-serif;">' +
             '<div style="max-width:440px;background:#fff;border:1px solid #e7e5e4;border-radius:16px;padding:24px;text-align:center;color:#1c1917;">' +
             '<h1 style="font-size:18px;font-weight:700;margin:0 0 8px;">Gagal Memuat Aplikasi</h1>' +
-            '<p style="font-size:13px;color:#57534e;line-height:1.5;margin:0 0 14px;">File build aplikasi tidak ditemukan. Jika Anda menggunakan GitHub Pages, pastikan <b>Settings → Pages → Source</b> diatur ke <b>GitHub Actions</b> (bukan Deploy from a branch).</p>' +
+            '<p style="font-size:13px;color:#57534e;line-height:1.5;margin:0 0 14px;">File build aplikasi tidak ditemukan atau gagal dijalankan. Jika Anda menggunakan GitHub Pages, pastikan <b>Settings → Pages → Source</b> diatur ke <b>GitHub Actions</b> (bukan Deploy from a branch).</p>' +
+            detail +
             '<button onclick="window.location.reload()" style="padding:10px 16px;background:#065f46;color:#fff;border:0;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">Muat Ulang</button>' +
             '</div></div>';
         }
-      }, 1500);
+      }, 2500);
     </script>
   </body>
 </html>
-

@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import { AppUserRecord, UserRole, UserSession } from './types/banana';
+import { STORE_NAME } from './data/initialData';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -129,7 +130,6 @@ export function generateSalt(length = 16): string {
   return result;
 }
 
-// Pure-JS SHA-256 fallback if Web Crypto subtle is unavailable
 function sha256Fallback(ascii: string): string {
   const rightRotate = (value: number, amount: number) =>
     (value >>> amount) | (value << (32 - amount));
@@ -139,8 +139,8 @@ function sha256Fallback(ascii: string): string {
   const words: number[] = [];
   const asciiBitLength = ascii.length * 8;
 
-  let hash = (sha256Fallback as unknown as { h?: number[] }).h || [];
-  let k = (sha256Fallback as unknown as { k?: number[] }).k || [];
+  const hash = (sha256Fallback as unknown as { h?: number[] }).h || [];
+  const k = (sha256Fallback as unknown as { k?: number[] }).k || [];
   let primeCounter = k.length;
 
   const isComposite: Record<number, boolean> = {};
@@ -231,10 +231,6 @@ async function getDocPreferServer(ref: ReturnType<typeof doc>) {
   }
 }
 
-/**
- * Ensures the shared lapak workspace (/lapak/main) and the two requested default accounts
- * (252500 owner/superadmin & 252501 kasir) exist in Firestore without overwriting existing records.
- */
 export async function ensureSeededUsersAndWorkspace(): Promise<void> {
   if (seedPromise) {
     return seedPromise;
@@ -253,12 +249,11 @@ export async function ensureSeededUsersAndWorkspace(): Promise<void> {
       try {
         await setDoc(lapakRef, {
           id: 'main',
-          name: 'Lapak Pisang Sumber Sewu',
+          name: STORE_NAME,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
       } catch (err) {
-        // Handle concurrent create race: lapak/main forbids updates, so duplicate setDoc throws permission-denied
         const verifySnap = await getDocPreferServer(lapakRef).catch(() => null);
         if (!verifySnap || !verifySnap.exists()) {
           handleFirestoreError(err, OperationType.CREATE, 'lapak/main');
@@ -275,13 +270,13 @@ export async function ensureSeededUsersAndWorkspace(): Promise<void> {
       {
         id: '252500',
         password: '8888',
-        fullName: 'Owner Lapak (Superadmin)',
+        fullName: 'Owner Gudang (Superadmin)',
         role: 'owner'
       },
       {
         id: '252501',
         password: '9999',
-        fullName: 'Kasir Lapak',
+        fullName: 'Kasir Gudang',
         role: 'kasir'
       }
     ];
@@ -367,7 +362,7 @@ export async function authenticateAppUser(
     fullName: userData.fullName,
     role: userData.role,
     roleLabel: formatRoleLabel(userData.role),
-    storeName: 'Lapak Pisang Sumber Sewu',
+    storeName: STORE_NAME,
     isLoggedIn: true
   };
 }

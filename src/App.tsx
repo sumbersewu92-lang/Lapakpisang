@@ -179,7 +179,24 @@ export default function App() {
     const unsubPurchases = onSnapshot(
       purchasesQ,
       (snapshot) => {
-        const list = snapshot.docs.map((d) => d.data() as FarmerPurchase);
+        const list = snapshot.docs.map((d) => {
+          const raw = d.data() as FarmerPurchase & Record<string, unknown>;
+          return {
+            ...raw,
+            id: raw.id || d.id,
+            receiptNumber: raw.receiptNumber || d.id,
+            farmerName: raw.farmerName || 'Petani',
+            bananaType:
+              raw.bananaType ||
+              (typeof raw.coffeeType === 'string' ? raw.coffeeType : '') ||
+              'Pisang',
+            weightKg: Number.isFinite(Number(raw.weightKg)) ? Number(raw.weightKg) : 0,
+            bunches: Number.isFinite(Number(raw.bunches)) ? Number(raw.bunches) : 0,
+            buyPricePerKg: Number.isFinite(Number(raw.buyPricePerKg)) ? Number(raw.buyPricePerKg) : 0,
+            totalPayment: Number.isFinite(Number(raw.totalPayment)) ? Number(raw.totalPayment) : 0,
+            date: raw.date || new Date().toISOString()
+          } as FarmerPurchase;
+        });
         const restore = captureScrollState();
         setPurchases(sortByDateDesc(list));
         restore();
@@ -198,7 +215,30 @@ export default function App() {
     const unsubSales = onSnapshot(
       salesQ,
       (snapshot) => {
-        const list = snapshot.docs.map((d) => d.data() as CentralWarehouseSale);
+        const list = snapshot.docs.map((d) => {
+          const raw = d.data() as CentralWarehouseSale & Record<string, unknown>;
+          const fallbackWeight = Number(raw.weightKg ?? raw.dispatchedWeightKg ?? raw.warehouseWeightKg ?? 0);
+          return {
+            ...raw,
+            id: raw.id || d.id,
+            invoiceNumber: raw.invoiceNumber || d.id,
+            buyerWarehouseName: raw.buyerWarehouseName || 'Pembeli dari Gudang',
+            bananaType:
+              raw.bananaType ||
+              (typeof raw.coffeeType === 'string' ? raw.coffeeType : '') ||
+              'Pisang',
+            weightKg: Number.isFinite(fallbackWeight) ? fallbackWeight : 0,
+            sellPricePerKg: Number.isFinite(Number(raw.sellPricePerKg)) ? Number(raw.sellPricePerKg) : 0,
+            totalRevenue: Number.isFinite(Number(raw.totalRevenue)) ? Number(raw.totalRevenue) : 0,
+            estimatedCost: Number.isFinite(Number(raw.estimatedCost)) ? Number(raw.estimatedCost) : 0,
+            netProfit: Number.isFinite(Number(raw.netProfit)) ? Number(raw.netProfit) : 0,
+            profitMarginPercent: Number.isFinite(Number(raw.profitMarginPercent))
+              ? Number(raw.profitMarginPercent)
+              : 0,
+            date: raw.date || new Date().toISOString(),
+            paymentStatus: raw.paymentStatus === 'BELUM_LUNAS' ? 'BELUM_LUNAS' : 'LUNAS'
+          } as CentralWarehouseSale;
+        });
         const restore = captureScrollState();
         setSales(sortByDateDesc(list));
         restore();

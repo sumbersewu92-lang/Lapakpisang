@@ -52,7 +52,6 @@ export const TabUsers: React.FC<TabUsersProps> = ({
   onUpdateUser,
   onDeleteUser
 }) => {
-  // Form Tambah User State
   const [newId, setNewId] = useState('');
   const [newFullName, setNewFullName] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('kasir');
@@ -62,11 +61,9 @@ export const TabUsers: React.FC<TabUsersProps> = ({
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'ALL' | UserRole>('ALL');
 
-  // Edit User Modal State
   const [editingUser, setEditingUser] = useState<AppUserRecord | null>(null);
   const [editFullName, setEditFullName] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('kasir');
@@ -75,7 +72,6 @@ export const TabUsers: React.FC<TabUsersProps> = ({
   const [editError, setEditError] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Delete Confirmation Modal State
   const [userToDelete, setUserToDelete] = useState<AppUserRecord | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -262,9 +258,9 @@ export const TabUsers: React.FC<TabUsersProps> = ({
       {/* Header Banner */}
       <div className="bg-white rounded-xl border border-stone-200 p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-1">
-            <Sparkles className="w-3.5 h-3.5 shrink-0" />
-            <span>Manajemen Akun &amp; Hak Akses Lapak</span>
+          <div className="flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase tracking-wider mb-1">
+            <Sparkles className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+            <span>Manajemen Akun &amp; Hak Akses Gudang</span>
           </div>
           <h2 className="text-lg sm:text-2xl font-bold text-stone-900 tracking-tight">
             Kelola Pengguna
@@ -284,7 +280,7 @@ export const TabUsers: React.FC<TabUsersProps> = ({
               {users.length}
             </span>
           </div>
-          <div className="px-3 py-2 rounded-xl bg-amber-50/70 border border-amber-200 text-center">
+          <div className="px-3 py-2 rounded-xl bg-amber-50/80 border border-amber-200 text-center">
             <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">
               Owner
             </span>
@@ -292,7 +288,7 @@ export const TabUsers: React.FC<TabUsersProps> = ({
               {ownerCount}
             </span>
           </div>
-          <div className="px-3 py-2 rounded-xl bg-emerald-50/70 border border-emerald-200 text-center">
+          <div className="px-3 py-2 rounded-xl bg-emerald-50/80 border border-emerald-200 text-center">
             <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">
               Kasir
             </span>
@@ -322,8 +318,8 @@ export const TabUsers: React.FC<TabUsersProps> = ({
           </div>
 
           {formError && (
-            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <span>{formError}</span>
             </div>
           )}
@@ -331,7 +327,7 @@ export const TabUsers: React.FC<TabUsersProps> = ({
           <form onSubmit={handleAddSubmit} className="space-y-3.5">
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1" htmlFor="new-user-id">
-                Username / ID Pengguna <span className="text-red-500">*</span>
+                Username / ID Pengguna <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -352,7 +348,7 @@ export const TabUsers: React.FC<TabUsersProps> = ({
 
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1" htmlFor="new-user-name">
-                Nama Lengkap <span className="text-red-500">*</span>
+                Nama Lengkap <span className="text-rose-500">*</span>
               </label>
               <input
                 id="new-user-name"
@@ -368,7 +364,7 @@ export const TabUsers: React.FC<TabUsersProps> = ({
 
             <div>
               <span className="block text-xs font-semibold text-stone-700 mb-1.5">
-                Role / Hak Akses <span className="text-red-500">*</span>
+                Role / Hak Akses <span className="text-rose-500">*</span>
               </span>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -412,7 +408,7 @@ export const TabUsers: React.FC<TabUsersProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1" htmlFor="new-user-pass">
-                  Password <span className="text-red-500">*</span>
+                  Password <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <Lock className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -437,7 +433,7 @@ export const TabUsers: React.FC<TabUsersProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1" htmlFor="new-user-confirm">
-                  Konfirmasi Password <span className="text-red-500">*</span>
+                  Konfirmasi Password <span className="text-rose-500">*</span>
                 </label>
                 <input
                   id="new-user-confirm"
@@ -465,7 +461,7 @@ export const TabUsers: React.FC<TabUsersProps> = ({
         <div className="lg:col-span-7 bg-white rounded-xl border border-stone-200 p-4 sm:p-5 shadow-xs space-y-4 min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
             <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-emerald-800 shrink-0" />
+              <Users className="w-4 h-4 text-emerald-700 shrink-0" />
               <h3 className="text-sm sm:text-base font-bold text-stone-900">
                 Daftar Pengguna Terdaftar
               </h3>
@@ -474,7 +470,6 @@ export const TabUsers: React.FC<TabUsersProps> = ({
               </span>
             </div>
 
-            {/* Search & Role Filter */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -506,7 +501,6 @@ export const TabUsers: React.FC<TabUsersProps> = ({
             </div>
           ) : (
             <>
-              {/* Mobile Cards (< sm) */}
               <div className="sm:hidden space-y-2.5">
                 {filteredUsers.map((u) => {
                   const isPrimaryOwner = u.id === '252500';
@@ -529,7 +523,7 @@ export const TabUsers: React.FC<TabUsersProps> = ({
                           className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
                             u.role === 'owner'
                               ? 'bg-amber-50 text-amber-800 border-amber-200'
-                              : 'bg-sky-50 text-sky-800 border-sky-200'
+                              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
                           }`}
                         >
                           {u.role === 'owner' ? 'Owner (Superadmin)' : 'Kasir'}
@@ -563,7 +557,6 @@ export const TabUsers: React.FC<TabUsersProps> = ({
                 })}
               </div>
 
-              {/* Desktop Table (>= sm) - 4 proportional columns without horizontal scroll */}
               <div className="hidden sm:block">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -598,7 +591,7 @@ export const TabUsers: React.FC<TabUsersProps> = ({
                               className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full border ${
                                 u.role === 'owner'
                                   ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                  : 'bg-sky-50 text-sky-800 border-sky-200'
+                                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
                               }`}
                             >
                               {u.role === 'owner' ? (
@@ -646,7 +639,7 @@ export const TabUsers: React.FC<TabUsersProps> = ({
         </div>
       </div>
 
-      {/* Modal Ubah Pengguna / Reset Password */}
+      {/* Modal Ubah Pengguna */}
       {editingUser && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/55 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150"
@@ -680,14 +673,14 @@ export const TabUsers: React.FC<TabUsersProps> = ({
 
             <form onSubmit={handleSaveEdit} className="p-5 space-y-4">
               {editError && (
-                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium">
                   {editError}
                 </div>
               )}
 
               <div>
                 <label className="block text-xs font-semibold text-stone-700 mb-1" htmlFor="edit-full-name">
-                  Nama Lengkap <span className="text-red-500">*</span>
+                  Nama Lengkap <span className="text-rose-500">*</span>
                 </label>
                 <input
                   id="edit-full-name"
@@ -787,8 +780,8 @@ export const TabUsers: React.FC<TabUsersProps> = ({
             </div>
 
             {deleteError && (
-              <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                 <span>{deleteError}</span>
               </div>
             )}

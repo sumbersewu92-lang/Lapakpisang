@@ -4,13 +4,24 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
+  const rawBase = process.env.VITE_BASE_PATH;
+  const base =
+    rawBase !== undefined
+      ? rawBase === '' || rawBase === '/'
+        ? '/'
+        : `/${rawBase.replace(/^\/+|\/+$/g, '')}/`
+      : './';
+
   return {
-    base: './',
+    base,
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),
       },
+    },
+    build: {
+      target: 'es2020',
     },
     server: {
       port: 3000,
@@ -23,3 +34,4 @@ export default defineConfig(() => {
     },
   };
 });
+

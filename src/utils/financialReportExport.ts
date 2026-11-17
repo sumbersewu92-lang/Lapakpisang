@@ -1,12 +1,16 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
-  FarmerPurchase,
-  CentralWarehouseSale,
+  BananaPurchase,
+  WarehouseSale,
   BananaRejectRecord,
   BananaShrinkageRecord
 } from '../types/banana';
 import {
+  STORE_NAME,
+  STORE_SUBTITLE,
+  STORE_ADDRESS,
+  STORE_WHATSAPP,
   formatDateIndo,
   formatDateTimeIndo,
   formatNumber,
@@ -19,10 +23,10 @@ export type ExportFormat = 'pdf' | 'csv';
 export interface FinancialExportInput {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
-  purchases: FarmerPurchase[];
-  sales: CentralWarehouseSale[];
-  rejects: BananaRejectRecord[];
-  shrinkages: BananaShrinkageRecord[];
+  purchases: BananaPurchase[];
+  sales: WarehouseSale[];
+  rejects?: BananaRejectRecord[];
+  shrinkages?: BananaShrinkageRecord[];
 }
 
 export interface MutasiLedgerRow {
@@ -51,10 +55,8 @@ export interface FinancialStatementSummary {
   purchaseCount: number;
   paidSaleCount: number;
   unpaidSaleCount: number;
-  shrinkageCount: number;
-  rejectCount: number;
-  totalShrinkageLoss: number;
-  totalRejectLoss: number;
+  totalPurchasedKg: number;
+  totalSoldKg: number;
 }
 
 function parseDateBounds(startDate: string, endDate: string): { startMs: number; endMs: number } {
@@ -100,20 +102,6 @@ function formatSignedNumeric(amount: number): string {
   return amount < 0 ? `-${absFormatted}` : absFormatted;
 }
 
-function summarizePurchaseVarieties(p: FarmerPurchase): string {
-  if (p.items && p.items.length > 0) {
-    return p.items.map((it) => `${it.bananaType} ${formatNumber(it.weightKg)} kg`).join(', ');
-  }
-  return `${p.bananaType} ${formatNumber(p.weightKg)} kg`;
-}
-
-function summarizeSaleVarieties(s: CentralWarehouseSale): string {
-  if (s.items && s.items.length > 0) {
-    return s.items.map((it) => `${it.bananaType} ${formatNumber(it.weightKg)} kg`).join(', ');
-  }
-  return `${s.bananaType} ${formatNumber(s.weightKg)} kg`;
-}
-
 export function buildFinancialStatement(input: FinancialExportInput): FinancialStatementSummary {
   const { startMs, endMs } = parseDateBounds(input.startDate, input.endDate);
 
@@ -124,21 +112,30 @@ export function buildFinancialStatement(input: FinancialExportInput): FinancialS
 
   const filteredPurchases = input.purchases.filter((p) => inRange(p.date));
   const filteredSales = input.sales.filter((s) => inRange(s.date));
-  const filteredShrinkages = input.shrinkages.filter((sh) => inRange(sh.date));
-  const filteredRejects = input.rejects.filter((r) => inRange(r.date));
+  const filteredShrinkages = (input.shrinkages || []).filter((sh) => inRange(sh.date));
+  const filteredRejects = (input.rejects || []).filter((r) => inRange(r.date));
 
   const rawEvents: Omit<MutasiLedgerRow, 'saldo'>[] = [];
 
   filteredPurchases.forEach((p) => {
     const ts = new Date(p.date).getTime();
-    const detail = summarizePurchaseVarieties(p);
+    const detail =
+      p.items && p.items.length > 1
+        ? p.items
+            .map(
+              (it) =>
+                `${it.bananaType} ${formatNumber(it.weightKg)} kg (${formatNumber(it.bunches)} tdn @${formatRupiah(it.buyPricePerKg)}/kg)`
+            )
+            .join('; ')
+        : `${p.bananaType} ${formatNumber(p.weightKg)} kg (${formatNumber(p.bunches)} tdn @${formatRupiah(p.buyPricePerKg)}/kg)`;
+
     rawEvents.push({
       ts: Number.isFinite(ts) ? ts : 0,
       order: 0,
       tanggalWaktu: formatStatementDateTime(p.date),
       noReferensi: p.receiptNumber,
       jenisMutasi: 'PEMBELIAN',
-      uraianTransaksi: `Pembelian dari Petani: ${p.farmerName} (${detail})${p.notes ? ` · Catatan: ${p.notes}` : ''}`,
+      uraianTransaksi: `Pembelian Pisang Petani: ${p.farmerName} (${detail})${p.notes ? ` · Catatan: ${p.notes}` : ''}`,
       debet: Math.round(p.totalPayment || 0),
       kredit: 0
     });
@@ -146,11 +143,16 @@ export function buildFinancialStatement(input: FinancialExportInput): FinancialS
 
   filteredSales.forEach((s) => {
     const ts = new Date(s.date).getTime();
-    const detail = summarizeSaleVarieties(s);
     const isPaid = s.paymentStatus === 'LUNAS';
     const statusDesc = isPaid
       ? `LUNAS · ${formatPaymentMethodLabel('LUNAS', s.paymentMethod)}`
       : `PIUTANG / BELUM CAIR: ${formatRupiah(s.totalRevenue)}${s.dueDate ? ` · Tempo ${formatDateIndo(s.dueDate)}` : ''}`;
+    const detail =
+      s.items && s.items.length > 0
+        ? s.items
+            .map((it) => `${it.bananaType} ${formatNumber(it.weightKg)} kg (@${formatRupiah(it.sellPricePerKg)}/kg)`)
+            .join('; ')
+        : `${s.bananaType} ${formatNumber(s.weightKg)} kg${(s.bunches ?? 0) > 0 ? ` (${formatNumber(s.bunches ?? 0)} tdn)` : ''} @${formatRupiah(s.sellPricePerKg)}/kg`;
 
     rawEvents.push({
       ts: Number.isFinite(ts) ? ts : 0,
@@ -192,7 +194,6 @@ export function buildFinancialStatement(input: FinancialExportInput): FinancialS
     });
   });
 
-  // Sort chronologically (oldest first, like a bank statement)
   rawEvents.sort((a, b) => a.ts - b.ts || a.order - b.order);
 
   let runningBalance = 0;
@@ -211,11 +212,10 @@ export function buildFinancialStatement(input: FinancialExportInput): FinancialS
   const totalKasMasukLunas = paidSales.reduce((acc, s) => acc + Math.round(s.totalRevenue || 0), 0);
   const totalPiutangGudang = unpaidSales.reduce((acc, s) => acc + Math.round(s.totalRevenue || 0), 0);
   const totalPenjualanBruto = filteredSales.reduce((acc, s) => acc + Math.round(s.totalRevenue || 0), 0);
+  const labaBersihTerwujud = filteredSales.reduce((acc, s) => acc + Math.round(s.netProfit || 0), 0);
 
-  const totalNetProfitSales = filteredSales.reduce((acc, s) => acc + Math.round(s.netProfit || 0), 0);
-  const totalShrinkageLoss = filteredShrinkages.reduce((acc, sh) => acc + Math.round(sh.totalLossAmount || 0), 0);
-  const totalRejectLoss = filteredRejects.reduce((acc, r) => acc + Math.round(r.totalLossAmount || 0), 0);
-  const labaBersihTerwujud = totalNetProfitSales - totalShrinkageLoss - totalRejectLoss;
+  const totalPurchasedKg = Math.round(filteredPurchases.reduce((acc, p) => acc + (p.weightKg || 0), 0) * 100) / 100;
+  const totalSoldKg = Math.round(filteredSales.reduce((acc, s) => acc + (s.weightKg || 0), 0) * 100) / 100;
 
   return {
     startDate: input.startDate,
@@ -231,10 +231,8 @@ export function buildFinancialStatement(input: FinancialExportInput): FinancialS
     purchaseCount: filteredPurchases.length,
     paidSaleCount: paidSales.length,
     unpaidSaleCount: unpaidSales.length,
-    shrinkageCount: filteredShrinkages.length,
-    rejectCount: filteredRejects.length,
-    totalShrinkageLoss,
-    totalRejectLoss
+    totalPurchasedKg,
+    totalSoldKg
   };
 }
 
@@ -256,36 +254,36 @@ export function exportFinancialStatementPDF(summary: FinancialStatementSummary):
   const marginX = 12;
   const contentWidth = pageWidth - marginX * 2;
 
-  // Formal Banking Colors (BRI-inspired deep navy & crisp neutral slate)
-  const navyR = 11;
-  const navyG = 58;
-  const navyB = 117;
+  // Emerald Theme Accent (#065F46)
+  const emeraldR = 6;
+  const emeraldG = 95;
+  const emeraldB = 70;
 
   // Top Header Strip
-  doc.setFillColor(navyR, navyG, navyB);
+  doc.setFillColor(emeraldR, emeraldG, emeraldB);
   doc.rect(marginX, 10, contentWidth, 2.2, 'F');
 
   // Store Identity (Left)
-  doc.setTextColor(15, 23, 42);
+  doc.setTextColor(28, 25, 23);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12.5);
-  doc.text('LAPAK PISANG SUMBER SEWU', marginX, 18.5);
+  doc.text(STORE_NAME.toUpperCase(), marginX, 18.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.2);
-  doc.setTextColor(71, 85, 105);
-  doc.text('Toko Sumber Sewu · Sistem Jual Beli & Manajemen Pisang', marginX, 23);
-  doc.text('Kontak / WhatsApp: 0822-8118-5001', marginX, 27);
+  doc.setTextColor(87, 83, 78);
+  doc.text(`${STORE_ADDRESS} · ${STORE_SUBTITLE}`, marginX, 23);
+  doc.text(`Kontak / WhatsApp: ${STORE_WHATSAPP}`, marginX, 27);
 
   // Statement Title & Metadata (Right)
-  doc.setTextColor(navyR, navyG, navyB);
+  doc.setTextColor(emeraldR, emeraldG, emeraldB);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10.5);
   doc.text('LAPORAN MUTASI KEUANGAN & ARUS KAS', pageWidth - marginX, 18.5, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(51, 65, 85);
+  doc.setTextColor(68, 64, 60);
   doc.text(
     `Periode Mutasi : ${formatDateIndo(summary.startDate)} s/d ${formatDateIndo(summary.endDate)}`,
     pageWidth - marginX,
@@ -295,11 +293,11 @@ export function exportFinancialStatementPDF(summary: FinancialStatementSummary):
   doc.text(`Waktu Cetak    : ${summary.printedAt}`, pageWidth - marginX, 27, { align: 'right' });
 
   // Horizontal Hairline Rule
-  doc.setDrawColor(203, 213, 225);
+  doc.setDrawColor(214, 211, 209);
   doc.setLineWidth(0.35);
   doc.line(marginX, 30.5, pageWidth - marginX, 30.5);
 
-  // Summary Box (4 Formal Statement Boxes)
+  // Summary Boxes
   const boxY = 33.5;
   const boxGap = 2.5;
   const boxW = (contentWidth - boxGap * 3) / 4;
@@ -309,13 +307,13 @@ export function exportFinancialStatementPDF(summary: FinancialStatementSummary):
     {
       label: 'TOTAL MODAL KELUAR (DEBET)',
       value: formatRupiah(summary.totalModalKeluar),
-      sub: `${summary.purchaseCount} nota pembelian petani`,
+      sub: `${summary.purchaseCount} nota (${formatNumber(summary.totalPurchasedKg)} kg)`,
       accent: [185, 28, 28] as const
     },
     {
       label: 'KAS MASUK LUNAS (KREDIT)',
       value: formatRupiah(summary.totalKasMasukLunas),
-      sub: `${summary.paidSaleCount} faktur penjualan lunas`,
+      sub: `${summary.paidSaleCount} faktur lunas`,
       accent: [4, 120, 87] as const
     },
     {
@@ -327,21 +325,21 @@ export function exportFinancialStatementPDF(summary: FinancialStatementSummary):
     {
       label: 'LABA BERSIH TERWUJUD',
       value: formatSignedRupiah(summary.labaBersihTerwujud),
-      sub: `Saldo Arus Kas: ${formatSignedRupiah(summary.saldoArusKasAkhir)}`,
-      accent: [navyR, navyG, navyB] as const
+      sub: `Volume terjual: ${formatNumber(summary.totalSoldKg)} kg`,
+      accent: [emeraldR, emeraldG, emeraldB] as const
     }
   ];
 
   summaryItems.forEach((item, idx) => {
     const x = marginX + idx * (boxW + boxGap);
     doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(203, 213, 225);
+    doc.setDrawColor(214, 211, 209);
     doc.setLineWidth(0.25);
     doc.roundedRect(x, boxY, boxW, boxH, 1.2, 1.2, 'FD');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.2);
-    doc.setTextColor(71, 85, 105);
+    doc.setTextColor(87, 83, 78);
     doc.text(item.label, x + 2.5, boxY + 4.5);
 
     doc.setFont('helvetica', 'bold');
@@ -351,7 +349,7 @@ export function exportFinancialStatementPDF(summary: FinancialStatementSummary):
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
+    doc.setTextColor(120, 113, 108);
     doc.text(item.sub, x + 2.5, boxY + 14.3, { maxWidth: boxW - 5 });
   });
 
@@ -359,12 +357,12 @@ export function exportFinancialStatementPDF(summary: FinancialStatementSummary):
   const tableStartY = boxY + boxH + 6;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
+  doc.setTextColor(28, 25, 23);
   doc.text('RINCIAN MUTASI TRANSAKSI KRONOLOGIS', marginX, tableStartY - 1.8);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139);
+  doc.setTextColor(120, 113, 108);
   doc.text(
     `Total ${summary.rows.length} mutasi tercatat (Mata Uang: IDR)`,
     pageWidth - marginX,
@@ -423,13 +421,13 @@ export function exportFinancialStatementPDF(summary: FinancialStatementSummary):
       font: 'helvetica',
       fontSize: 7.2,
       cellPadding: { top: 2, right: 2, bottom: 2, left: 2 },
-      textColor: [30, 41, 59],
-      lineColor: [203, 213, 225],
+      textColor: [41, 37, 36],
+      lineColor: [214, 211, 209],
       lineWidth: 0.2,
       valign: 'top'
     },
     headStyles: {
-      fillColor: [navyR, navyG, navyB],
+      fillColor: [emeraldR, emeraldG, emeraldB],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 7.2,
@@ -437,13 +435,13 @@ export function exportFinancialStatementPDF(summary: FinancialStatementSummary):
       valign: 'middle'
     },
     footStyles: {
-      fillColor: [241, 245, 249],
-      textColor: [15, 23, 42],
+      fillColor: [236, 253, 245],
+      textColor: [28, 25, 23],
       fontStyle: 'bold',
       fontSize: 7.5
     },
     alternateRowStyles: {
-      fillColor: [249, 250, 251]
+      fillColor: [250, 250, 249]
     },
     columnStyles: {
       0: { cellWidth: 24, font: 'courier', fontSize: 6.9 },
@@ -473,31 +471,26 @@ export function exportFinancialStatementPDF(summary: FinancialStatementSummary):
           }
           if (data.column.index === 5) {
             data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.textColor = rowObj.saldo < 0 ? [185, 28, 28] : [15, 23, 42];
+            data.cell.styles.textColor = rowObj.saldo < 0 ? [185, 28, 28] : [28, 25, 23];
           }
         }
       }
     },
     didDrawPage: () => {
       const currentPage = doc.getNumberOfPages();
-      doc.setDrawColor(226, 232, 240);
+      doc.setDrawColor(231, 229, 228);
       doc.setLineWidth(0.25);
       doc.line(marginX, pageHeight - 13, pageWidth - marginX, pageHeight - 13);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(6.8);
-      doc.setTextColor(100, 116, 139);
+      doc.setTextColor(120, 113, 108);
       doc.text(
-        'Dokumen mutasi keuangan resmi Lapak Pisang Sumber Sewu · Catatan susut & reject tidak memotong kas secara ganda.',
+        `Dokumen mutasi keuangan resmi ${STORE_NAME} · Disusun otomatis dari buku kas gudang.`,
         marginX,
         pageHeight - 8.5
       );
-      doc.text(
-        `Halaman ${currentPage}`,
-        pageWidth - marginX,
-        pageHeight - 8.5,
-        { align: 'right' }
-      );
+      doc.text(`Halaman ${currentPage}`, pageWidth - marginX, pageHeight - 8.5, { align: 'right' });
     }
   });
 
@@ -516,8 +509,8 @@ export function exportFinancialStatementCSV(summary: FinancialStatementSummary):
   const lines: string[] = [];
   const row = (cells: (string | number)[]) => lines.push(cells.map(escapeCsvCell).join(','));
 
-  row(['LAPAK PISANG SUMBER SEWU']);
-  row(['Toko Sumber Sewu | WhatsApp: 0822-8118-5001']);
+  row([STORE_NAME.toUpperCase()]);
+  row([`${STORE_ADDRESS} | WhatsApp: ${STORE_WHATSAPP}`]);
   row(['LAPORAN MUTASI KEUANGAN & ARUS KAS']);
   row(['Periode', `${formatDateIndo(summary.startDate)} s/d ${formatDateIndo(summary.endDate)}`]);
   row(['Waktu Cetak', summary.printedAt]);
@@ -527,8 +520,8 @@ export function exportFinancialStatementCSV(summary: FinancialStatementSummary):
   row(['Total Modal Keluar (Pembelian Petani)', summary.totalModalKeluar]);
   row(['Total Kas Masuk Lunas (Penjualan Gudang)', summary.totalKasMasukLunas]);
   row(['Total Piutang Gudang (Belum Cair)', summary.totalPiutangGudang]);
-  row(['Beban Susut / Selisih Timbang', summary.totalShrinkageLoss]);
-  row(['Beban Stok Reject', summary.totalRejectLoss]);
+  row(['Total Berat Beli Pisang (kg)', summary.totalPurchasedKg]);
+  row(['Total Berat Terjual ke Gudang (kg)', summary.totalSoldKg]);
   row(['Laba Bersih Terwujud', summary.labaBersihTerwujud]);
   row(['Saldo Arus Kas Akhir (Kredit - Debet)', summary.saldoArusKasAkhir]);
   lines.push('');

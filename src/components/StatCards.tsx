@@ -1,66 +1,62 @@
 import React from 'react';
-import { Scale, Wallet, TrendingUp, Sparkles, Clock3, CheckCircle2 } from 'lucide-react';
+import { Scale, Wallet, TrendingUp, Sparkles, Clock3, CheckCircle2, Layers } from 'lucide-react';
 import { formatRupiah, formatSignedRupiah, formatNumber } from '../data/initialData';
 
 interface StatCardsProps {
   activeTab: 'purchases' | 'stock-and-sales' | 'financial-report';
   totalStockKg: number;
   totalStockBunches?: number;
+  varietyCount?: number;
   totalCapitalSpent: number;
   totalRealizedRevenue: number;
   totalRealizedProfit: number;
   totalRejectLoss?: number;
   totalShrinkageLoss?: number;
-  projectedProfitFromStock: number;
-  potentialStockGrossValue: number;
-  totalReceivables: number; // Total Piutang Belum Ditransfer
-  unpaidCount: number; // Jumlah Transaksi Belum Lunas
-  totalPaidRevenue: number; // Kas Masuk Penjualan Lunas
+  projectedProfitFromStock?: number;
+  potentialStockGrossValue?: number;
+  totalReceivables: number;
+  unpaidCount: number;
+  totalPaidRevenue: number;
 }
 
 export const StatCards: React.FC<StatCardsProps> = ({
   activeTab,
   totalStockKg,
+  totalStockBunches = 0,
+  varietyCount = 0,
   totalCapitalSpent,
   totalRealizedRevenue,
   totalRealizedProfit,
   totalRejectLoss = 0,
   totalShrinkageLoss = 0,
-  projectedProfitFromStock,
-  potentialStockGrossValue,
   totalReceivables,
   unpaidCount,
   totalPaidRevenue
 }) => {
-  const totalOperationalLoss = totalRejectLoss + totalShrinkageLoss;
-  const netProfitAfterAdjustments = totalRealizedProfit - totalOperationalLoss;
-  // If active tab is 'purchases', do not render any metric cards
   if (activeTab === 'purchases') {
     return null;
   }
+  const combinedLoss = totalRejectLoss + totalShrinkageLoss;
+  const adjustedNetProfit = totalRealizedProfit - combinedLoss;
 
-  // Both 'stock-and-sales' and 'financial-report' render an adaptive ultra-compact 4-column symmetric grid
   return (
-    <div 
-      key={activeTab} 
+    <div
+      key={activeTab}
       className={
         activeTab === 'stock-and-sales'
-          ? "grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 transition-all duration-300 animate-in fade-in zoom-in-95"
-          : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 transition-all duration-300 animate-in fade-in zoom-in-95"
+          ? 'grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 transition-all duration-300 animate-in fade-in zoom-in-95'
+          : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 transition-all duration-300 animate-in fade-in zoom-in-95'
       }
     >
-      {/* =========================================================================
-          TAB: STOK & PENJUALAN
-          (3 Compact Cards: Total Stok Siap Kirim, Total Piutang Gudang, Penjualan Gudang Pusat)
-         ========================================================================= */}
+      {/* TAB: STOK & PENJUALAN */}
       {activeTab === 'stock-and-sales' && (
         <>
-          {/* Card 1: Total Stok Lapak / Siap Kirim */}
+          {/* Card 1: Total Stok Pisang Gudang */}
           <div className="bg-white rounded-xl border border-stone-200 py-2.5 px-3 sm:px-3.5 shadow-2xs flex flex-col justify-between hover:border-emerald-300 transition-colors">
             <div>
               <div className="flex items-center justify-between text-stone-500 mb-0.5">
-                <span className="text-[11px] font-semibold text-stone-600 truncate">Total Stok Siap Kirim</span>
-                <div className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0">
+                <span className="text-[11px] font-semibold text-stone-600 truncate">Total Stok Pisang Gudang</span>
+                <div className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
                   <Scale className="w-3.5 h-3.5" />
                 </div>
               </div>
@@ -68,13 +64,16 @@ export const StatCards: React.FC<StatCardsProps> = ({
                 <span className="text-lg sm:text-xl font-extrabold text-stone-900 tracking-tight font-mono tabular-nums leading-none">
                   {formatNumber(totalStockKg)}
                 </span>
-                <span className="text-[11px] font-bold text-emerald-800 leading-none">kg</span>
+                <span className="text-[11px] font-bold text-emerald-700 leading-none">kg</span>
               </div>
             </div>
-            <div className="mt-1.5 pt-1.5 border-t border-stone-100 flex items-center justify-between text-[10.5px] text-stone-500">
-              <span>Satuan Inventori</span>
-              <span className="font-semibold text-emerald-800">
-                Kilogram (kg)
+            <div className="mt-1.5 pt-1.5 border-t border-stone-100 flex items-center justify-between gap-2 text-[10.5px] text-stone-500">
+              <span className="inline-flex items-center gap-1 truncate">
+                <Layers className="w-3 h-3 text-emerald-700 shrink-0" />
+                <span>{varietyCount} varietas aktif</span>
+              </span>
+              <span className="font-semibold text-emerald-800 font-mono tabular-nums shrink-0">
+                {formatNumber(totalStockBunches)} tandan
               </span>
             </div>
           </div>
@@ -103,11 +102,11 @@ export const StatCards: React.FC<StatCardsProps> = ({
           </div>
 
           {/* Card 3: Total Penjualan Gudang Pusat */}
-          <div className="bg-white rounded-xl border border-stone-200 py-2.5 px-3 sm:px-3.5 shadow-2xs flex flex-col justify-between hover:border-blue-300 transition-colors">
+          <div className="bg-white rounded-xl border border-stone-200 py-2.5 px-3 sm:px-3.5 shadow-2xs flex flex-col justify-between hover:border-stone-300 transition-colors">
             <div>
               <div className="flex items-center justify-between text-stone-500 mb-0.5">
                 <span className="text-[11px] font-semibold text-stone-600 truncate">Penjualan Gudang Pusat</span>
-                <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-800 flex items-center justify-center shrink-0">
+                <div className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
                   <TrendingUp className="w-3.5 h-3.5" />
                 </div>
               </div>
@@ -127,10 +126,7 @@ export const StatCards: React.FC<StatCardsProps> = ({
         </>
       )}
 
-      {/* =========================================================================
-          TAB: LAPORAN KEUANGAN
-          (4 Compact Cards: Total Modal Keluar, Total Penjualan, Total Piutang Gudang, Laba Bersih Terwujud)
-         ========================================================================= */}
+      {/* TAB: LAPORAN KEUANGAN */}
       {activeTab === 'financial-report' && (
         <>
           {/* Card 1: Total Modal Keluar */}
@@ -149,7 +145,7 @@ export const StatCards: React.FC<StatCardsProps> = ({
               </div>
             </div>
             <div className="mt-1.5 pt-1.5 border-t border-stone-100 flex items-center justify-between text-[10.5px] text-stone-500">
-              <span>Uang Beli Petani</span>
+              <span>Pembelian dari Petani</span>
               <span className="font-semibold text-emerald-700 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                 <span>Tunai Lunas</span>
@@ -157,12 +153,12 @@ export const StatCards: React.FC<StatCardsProps> = ({
             </div>
           </div>
 
-          {/* Card 2: Total Penjualan (Omset Keseluruhan) */}
-          <div className="bg-white rounded-xl border border-stone-200 py-2.5 px-3 sm:px-3.5 shadow-2xs flex flex-col justify-between hover:border-blue-300 transition-colors">
+          {/* Card 2: Total Omset Penjualan */}
+          <div className="bg-white rounded-xl border border-stone-200 py-2.5 px-3 sm:px-3.5 shadow-2xs flex flex-col justify-between hover:border-stone-300 transition-colors">
             <div>
               <div className="flex items-center justify-between text-stone-500 mb-0.5">
                 <span className="text-[11px] font-semibold text-stone-600 truncate">Total Omset Penjualan</span>
-                <div className="w-6 h-6 rounded-md bg-blue-50 text-blue-800 flex items-center justify-center shrink-0">
+                <div className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
                   <TrendingUp className="w-3.5 h-3.5" />
                 </div>
               </div>
@@ -203,41 +199,34 @@ export const StatCards: React.FC<StatCardsProps> = ({
             </div>
           </div>
 
-          {/* Card 4: Laba Bersih Aktual (Setelah Beban Reject & Susut) */}
-          <div className="bg-gradient-to-br from-emerald-800 via-emerald-850 to-emerald-950 text-white rounded-xl py-2.5 px-3 sm:px-3.5 shadow-2xs flex flex-col justify-between hover:shadow-md transition-shadow">
+          {/* Card 4: Laba Bersih Terwujud */}
+          <div className="bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-900 text-white rounded-xl py-2.5 px-3 sm:px-3.5 shadow-2xs flex flex-col justify-between hover:shadow-md transition-shadow">
             <div>
-              <div className="flex items-center justify-between text-emerald-200 mb-0.5">
+              <div className="flex items-center justify-between text-emerald-100 mb-0.5">
                 <span className="text-[11px] font-semibold truncate">
-                  {totalOperationalLoss > 0 ? 'Laba Bersih Aktual' : 'Laba Bersih Terwujud'}
+                  Laba Bersih Terwujud
                 </span>
-                <div className="w-6 h-6 rounded-md bg-emerald-700/60 text-amber-300 flex items-center justify-center shrink-0">
+                <div className="w-6 h-6 rounded-md bg-white/10 text-emerald-200 flex items-center justify-center shrink-0">
                   <Sparkles className="w-3.5 h-3.5" />
                 </div>
               </div>
               <div className="flex items-baseline my-0.5">
-                <span className={`text-lg sm:text-xl font-extrabold tracking-tight font-mono tabular-nums leading-none ${
-                  netProfitAfterAdjustments >= 0 ? 'text-amber-300' : 'text-rose-300'
-                }`}>
-                  {formatSignedRupiah(netProfitAfterAdjustments)}
+                <span
+                  className={`text-lg sm:text-xl font-extrabold tracking-tight font-mono tabular-nums leading-none ${
+                    adjustedNetProfit >= 0 ? 'text-emerald-200' : 'text-rose-200'
+                  }`}
+                >
+                  {formatSignedRupiah(adjustedNetProfit)}
                 </span>
               </div>
             </div>
-            <div className="mt-1.5 pt-1.5 border-t border-emerald-700/60 flex items-center justify-between gap-2 text-[10.5px] text-emerald-200">
-              {totalOperationalLoss > 0 ? (
-                <>
-                  <span className="truncate">Beban Reject &amp; Susut</span>
-                  <span className="font-semibold text-rose-300 font-mono tabular-nums shrink-0">
-                    -{formatRupiah(totalOperationalLoss)}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="truncate">Potensi Tambahan Stok</span>
-                  <span className="font-semibold text-white font-mono tabular-nums shrink-0">
-                    +{formatRupiah(projectedProfitFromStock)}
-                  </span>
-                </>
-              )}
+            <div className="mt-1.5 pt-1.5 border-t border-white/15 flex items-center justify-between gap-2 text-[10.5px] text-emerald-100/90">
+              <span className="truncate">
+                {combinedLoss > 0 ? 'Susut & Reject' : 'Sisa Stok Gudang'}
+              </span>
+              <span className="font-semibold font-mono tabular-nums text-white shrink-0">
+                {combinedLoss > 0 ? `-${formatRupiah(combinedLoss)}` : `${formatNumber(totalStockKg)} kg`}
+              </span>
             </div>
           </div>
         </>

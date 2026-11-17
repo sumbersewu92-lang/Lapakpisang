@@ -223,11 +223,12 @@ export const TabPurchase: React.FC<TabPurchaseProps> = ({
 
   // Filtered purchases sesuai pencarian dan 5 opsi jenis pisang (mendukung nota multi-item)
   const filteredPurchases = purchases.filter(p => {
+    const q = searchQuery.toLowerCase();
     const matchesSearch = 
-      p.farmerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.bananaType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.receiptNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.items && p.items.some(it => it.bananaType.toLowerCase().includes(searchQuery.toLowerCase())));
+      (p.farmerName || '').toLowerCase().includes(q) ||
+      (p.bananaType || '').toLowerCase().includes(q) ||
+      (p.receiptNumber || '').toLowerCase().includes(q) ||
+      (p.items && p.items.some(it => (it.bananaType || '').toLowerCase().includes(q)));
 
     let matchesType = true;
     if (filterType === 'ALL') {

@@ -8,12 +8,14 @@ import {
   Loader2,
   Clock,
   Scale,
-  Truck,
-  PieChart,
+  Package,
+  TrendingUp,
   AlertCircle
 } from 'lucide-react';
 import { authenticateAppUser } from '../firebase';
 import { UserSession } from '../types/banana';
+import { STORE_NAME, STORE_SUBTITLE } from '../data/initialData';
+import { BananaLogoIcon } from './BananaLogoIcon';
 
 interface LoginPageProps {
   onLoginSuccess: (session: UserSession) => void;
@@ -22,18 +24,18 @@ interface LoginPageProps {
 const FEATURE_MODULES = [
   {
     icon: Scale,
-    title: 'Pembelian Petani & Timbangan',
-    description: 'Catat pasokan berat bersih (kg), harga beli, dan cetak nota timbangan petani secara akurat.'
+    title: 'Timbangan Multi-Varietas',
+    description: 'Catat pembelian berbagai jenis pisang dari petani (tandan & kg) dalam satu nota timbangan resmi.'
   },
   {
-    icon: Truck,
-    title: 'Stok & Pengiriman Gudang',
-    description: 'Pantau sisa stok per varietas, pencatatan susut timbang, reject, hingga surat jalan.'
+    icon: Package,
+    title: 'Stok & Reject Per Jenis',
+    description: 'Pantau inventori stok per varietas pisang beserta fitur penyesuaian stok & reject/penyusutan buah (+/-).'
   },
   {
-    icon: PieChart,
-    title: 'Laporan Keuangan & Laba',
-    description: 'Rekonsiliasi modal pokok, piutang gudang, beban operasional, dan laba bersih otomatis.'
+    icon: TrendingUp,
+    title: 'Penjualan Gudang & Margin',
+    description: 'Terbitkan faktur penjualan ke gudang pusat, pantau piutang jatuh tempo, dan hitung laba bersih otomatis.'
   }
 ];
 
@@ -97,19 +99,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-stone-100 flex flex-col lg:h-screen lg:w-screen lg:overflow-x-hidden">
+    <div className="min-h-screen bg-stone-50 flex flex-col lg:h-screen lg:w-screen lg:overflow-x-hidden">
       {/* Mobile & Tablet Top Header (< lg) */}
       <header className="lg:hidden sticky top-0 z-20 w-full bg-white/95 backdrop-blur-md border-b border-stone-200 shadow-xs">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-800 text-amber-300 flex items-center justify-center font-bold text-xl sm:text-2xl shadow-xs border border-emerald-700/80 shrink-0">
-            <span className="select-none">🍌</span>
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-800 border border-emerald-700 flex items-center justify-center shadow-xs shrink-0">
+            <BananaLogoIcon className="w-6 h-6 sm:w-7 sm:h-7" />
           </div>
           <div className="min-w-0">
             <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-stone-900 leading-tight">
-              Lapak Pisang Sumber Sewu
+              {STORE_NAME}
             </h1>
             <p className="text-[11px] sm:text-xs text-stone-500 font-medium leading-snug mt-0.5">
-              Sistem Jual Beli dan Management Pisang Mentah
+              {STORE_SUBTITLE}
             </p>
           </div>
         </div>
@@ -117,25 +119,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-0 lg:items-stretch lg:justify-stretch">
         <div className="w-full max-w-md lg:max-w-none lg:flex-1 lg:h-full bg-white rounded-2xl lg:rounded-none shadow-xl lg:shadow-none overflow-hidden lg:overflow-y-auto border border-stone-200 lg:border-0 grid grid-cols-1 lg:grid-cols-12">
-          {/* Left Side: Bright Clean Information Panel & 2x2 Feature Cards (Desktop lg+ only) */}
-          <div className="hidden lg:flex lg:col-span-7 bg-gradient-to-br from-emerald-50/90 via-white to-sky-50/60 text-stone-900 p-8 xl:p-12 flex-col justify-between border-r border-stone-200/80">
-            {/* Top Bar: Brand Identity + Live Digital Clock */}
+          {/* Left Side: Emerald Fresh Warehouse Panel (Desktop lg+ only) */}
+          <div className="hidden lg:flex lg:col-span-7 bg-gradient-to-br from-emerald-50/90 via-white to-stone-50 text-stone-900 p-8 xl:p-12 flex-col justify-between border-r border-stone-200/80">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-11 h-11 rounded-xl bg-emerald-800 text-amber-300 flex items-center justify-center shadow-xs border border-emerald-700/80 shrink-0">
-                  <span className="text-2xl font-bold select-none">🍌</span>
+                <div className="w-12 h-12 rounded-xl bg-emerald-800 border border-emerald-700 flex items-center justify-center shadow-xs shrink-0">
+                  <BananaLogoIcon className="w-7 h-7" />
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-xl xl:text-2xl font-extrabold tracking-tight text-stone-900 leading-tight">
-                    Lapak Pisang Sumber Sewu
+                    {STORE_NAME}
                   </h1>
-                  <p className="text-xs xl:text-sm text-stone-600 font-medium mt-0.5">
-                    Sistem Jual Beli dan Management Pisang Mentah
+                  <p className="text-xs xl:text-sm text-emerald-800 font-semibold mt-0.5">
+                    {STORE_SUBTITLE}
                   </p>
                 </div>
               </div>
 
-              {/* Live Digital Clock Widget */}
               <div
                 className="bg-white border border-stone-200/90 rounded-xl px-4 py-2.5 shadow-2xs shrink-0 text-right"
                 aria-label="Waktu saat ini"
@@ -150,14 +150,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               </div>
             </div>
 
-            {/* Center Content: Intro + 2x2 Feature Module Grid */}
             <div className="my-auto py-8">
               <div className="max-w-xl mb-6 xl:mb-7">
-                <h2 className="text-2xl xl:text-3xl font-extrabold tracking-tight text-stone-900 leading-snug text-balance">
-                  Pencatatan Rapi, Timbangan Akurat, Cuan Terukur.
+                <h2 className="text-2xl xl:text-3xl font-extrabold tracking-tight text-emerald-950 leading-snug text-balance">
+                  Timbangan Rapi, Stok Terukur, Penjualan &amp; Margin Otomatis.
                 </h2>
                 <p className="text-sm text-stone-600 leading-relaxed mt-2">
-                  Kelola seluruh operasional harian lapak pengepul pisang mentah dalam satu sistem agribisnis yang terintegrasi dan aman.
+                  Kelola penerimaan hasil kebun dari petani dengan pencatatan multi-varietas pisang, pemantauan inventori &amp; reject per jenis, serta penjualan ke gudang pusat dalam satu sistem terpadu.
                 </p>
               </div>
 
@@ -169,7 +168,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                       key={mod.title}
                       className="bg-white/95 border border-stone-200/90 rounded-xl p-4 shadow-2xs flex flex-col gap-2.5"
                     >
-                      <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/70 flex items-center justify-center shrink-0">
+                      <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center justify-center shrink-0">
                         <Icon className="w-4 h-4" />
                       </div>
                       <div>
@@ -186,9 +185,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               </div>
             </div>
 
-            {/* Left Panel Footer */}
             <div className="pt-5 border-t border-stone-200/80 flex items-center justify-between text-xs text-stone-500 font-medium">
-              <span>Copyright &copy; 2026 Sumber Sewu. All right reserved.</span>
+              <span>Copyright &copy; 2026 {STORE_NAME}. All rights reserved.</span>
             </div>
           </div>
 
@@ -197,13 +195,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             <div className="max-w-md w-full mx-auto">
               <div className="mb-5 sm:mb-7 text-center lg:text-left">
                 <p className="hidden lg:block text-xs font-semibold text-emerald-700 mb-1.5">
-                  Portal Masuk Lapak Pisang Sumber Sewu
+                  Portal Masuk {STORE_NAME}
                 </p>
                 <h3 className="text-xl sm:text-2xl font-bold text-stone-900 tracking-tight">
                   Masuk Akun
                 </h3>
                 <p className="text-xs sm:text-sm text-stone-500 mt-1">
-                  Masukkan ID Karyawan dan kata sandi Anda untuk mulai mengelola lapak.
+                  Masukkan ID Karyawan dan kata sandi Anda untuk mulai mengelola gudang pisang.
                 </p>
               </div>
 
@@ -218,7 +216,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     </div>
                     <input
                       id="username"
-                      name="lapak_employee_id"
+                      name="pisang_employee_id"
                       type="text"
                       autoComplete="off"
                       autoCapitalize="none"
@@ -244,7 +242,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     </div>
                     <input
                       id="password"
-                      name="lapak_employee_pin"
+                      name="pisang_employee_pin"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="off"
                       value={password}
@@ -265,15 +263,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                     </button>
                   </div>
 
-                  {/* Fixed-height error slot directly below password field to prevent layout shift */}
                   <div
                     role="alert"
                     aria-live="polite"
-                    className={`mt-2 h-9 flex items-start gap-1.5 text-xs font-medium text-red-600 leading-tight transition-opacity duration-150 ${
+                    className={`mt-2 h-9 flex items-start gap-1.5 text-xs font-medium text-rose-600 leading-tight transition-opacity duration-150 ${
                       error ? 'opacity-100 visible' : 'opacity-0 invisible select-none pointer-events-none'
                     }`}
                   >
-                    <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" aria-hidden="true" />
                     <span className="line-clamp-2">{error || '\u00A0'}</span>
                   </div>
                 </div>
@@ -282,7 +279,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full py-3 px-4 bg-emerald-800 hover:bg-emerald-900 text-white font-semibold rounded-xl shadow-md shadow-emerald-900/10 hover:shadow-lg transition flex items-center justify-center gap-2 text-sm disabled:opacity-60 cursor-pointer"
+                    className="w-full py-3 px-4 bg-emerald-800 hover:bg-emerald-900 text-white font-semibold rounded-xl shadow-md shadow-emerald-900/15 hover:shadow-lg transition flex items-center justify-center gap-2 text-sm disabled:opacity-60 cursor-pointer"
                   >
                     {isLoading ? (
                       <>
@@ -291,7 +288,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                       </>
                     ) : (
                       <>
-                        <span>Masuk ke Lapak</span>
+                        <span>Masuk ke Gudang Pisang</span>
                         <ArrowRight className="w-4 h-4 shrink-0" />
                       </>
                     )}
@@ -303,10 +300,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         </div>
       </main>
 
-      {/* Mobile & Tablet Page Footer (< lg) */}
       <footer className="lg:hidden py-4 px-4 text-center">
         <p className="text-xs text-stone-500 font-medium">
-          Copyright &copy; 2026 Sumber Sewu. All right reserved.
+          Copyright &copy; 2026 {STORE_NAME}. All rights reserved.
         </p>
       </footer>
     </div>
